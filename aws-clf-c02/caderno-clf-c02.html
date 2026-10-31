@@ -1,0 +1,611 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Caderno CLF-C02</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: one reading column; summary strip on top, then a toolbar, then one card per wrong answer. */
+:root {
+  --bg: #eef1f4;
+  --surface: #ffffff;
+  --sunk: #e3e8ee;
+  --fg: #16202b;
+  --muted: #5b6878;
+  --line: #d3dae3;
+  --accent: #1f5f8b;
+  --accent-soft: #dbe8f2;
+  --d1: #2f7d6d; --d1-soft: #d9efe9;
+  --d2: #a5463c; --d2-soft: #f5e0dc;
+  --d3: #3c5aa5; --d3-soft: #dee5f6;
+  --d4: #94701c; --d4-soft: #f4ead2;
+  --todo: #8a5a00; --todo-soft: #fbefd6;
+  --font-display: "Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+  --font-body: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #11161c; --surface: #19212a; --sunk: #222c37; --fg: #e4e9ef; --muted: #98a5b4; --line: #2e3a47;
+    --accent: #79b4dd; --accent-soft: #1f3344;
+    --d1: #6cc6b2; --d1-soft: #173630; --d2: #e8897d; --d2-soft: #3d221f;
+    --d3: #93aaf0; --d3-soft: #1f2a45; --d4: #e0bd6a; --d4-soft: #3a2f16;
+    --todo: #f0c065; --todo-soft: #3a2d12;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #11161c; --surface: #19212a; --sunk: #222c37; --fg: #e4e9ef; --muted: #98a5b4; --line: #2e3a47;
+  --accent: #79b4dd; --accent-soft: #1f3344;
+  --d1: #6cc6b2; --d1-soft: #173630; --d2: #e8897d; --d2-soft: #3d221f;
+  --d3: #93aaf0; --d3-soft: #1f2a45; --d4: #e0bd6a; --d4-soft: #3a2f16;
+  --todo: #f0c065; --todo-soft: #3a2d12;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  background: var(--bg); color: var(--fg);
+  font-family: var(--font-body); font-size: 15.5px; line-height: 1.6;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 32px 64px;
+}
+.wrap { max-width: 780px; margin: 0 auto; display: grid; gap: 28px; }
+header { display: grid; gap: 6px; }
+.eyebrow { font-family: var(--font-mono); font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+h1 { font-family: var(--font-display); font-size: clamp(30px, 6vw, 42px); line-height: 1.05; margin: 0; text-wrap: balance; letter-spacing: -.01em; }
+.meta { color: var(--muted); margin: 0; }
+.meta strong { color: var(--fg); font-weight: 600; }
+
+/* summary */
+.summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px; }
+.dom { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; display: grid; gap: 8px; min-width: 0; }
+.dom-top { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.dom-name { font-size: 13px; color: var(--muted); }
+.dom-name b { color: var(--fg); font-weight: 600; }
+.dom-count { font-family: var(--font-display); font-size: 26px; font-variant-numeric: tabular-nums; line-height: 1; }
+.dom-bar { height: 6px; border-radius: 3px; background: var(--sunk); overflow: hidden; }
+.dom-bar span { display: block; height: 100%; border-radius: 3px; }
+.dom-weight { font-family: var(--font-mono); font-size: 11.5px; color: var(--muted); }
+.motivos { display: flex; flex-wrap: wrap; gap: 8px; font-size: 13px; color: var(--muted); }
+.motivos .m { background: var(--surface); border: 1px solid var(--line); border-radius: 999px; padding: 3px 10px; }
+.motivos .m b { color: var(--fg); font-variant-numeric: tabular-nums; }
+.motivos .m.todo { border-color: var(--todo); color: var(--todo); background: var(--todo-soft); }
+
+/* toolbar */
+.toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; background: var(--bg); padding-block: 10px; border-bottom: 1px solid var(--line); }
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--bg); }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip, .btn {
+  font: 500 13px/1 var(--font-body); color: var(--fg); background: var(--surface);
+  border: 1px solid var(--line); border-radius: 999px; padding: 8px 12px; cursor: pointer;
+}
+.chip[aria-pressed="true"] { background: var(--fg); color: var(--bg); border-color: var(--fg); }
+.chip:focus-visible, .btn:focus-visible, .reveal-btn:focus-visible, .switch input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: 2px; }
+.spacer { flex: 1; }
+.switch { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 500; cursor: pointer; user-select: none; }
+.switch input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.switch span { width: 34px; height: 20px; border-radius: 999px; background: var(--sunk); border: 1px solid var(--line); position: relative; transition: background .15s; }
+.switch span::after { content: ""; position: absolute; top: 2px; left: 2px; width: 14px; height: 14px; border-radius: 50%; background: var(--muted); transition: transform .15s, background .15s; }
+.switch input:checked + span { background: var(--accent); border-color: var(--accent); }
+.switch input:checked + span::after { transform: translateX(14px); background: var(--surface); }
+.btn { border-radius: 8px; }
+.btn.ghost { background: transparent; }
+
+/* sections and cards */
+.section-title { font-family: var(--font-display); font-size: 21px; margin: 6px 0 0; text-wrap: balance; }
+.section-meta { color: var(--muted); font-size: 14px; }
+.section-meta ul { margin: 4px 0 0; padding-left: 18px; }
+.cards { display: grid; gap: 16px; }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 18px 20px 20px; display: grid; gap: 12px; min-width: 0; }
+.card-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; }
+.qid { font-family: var(--font-mono); font-weight: 500; font-size: 13px; color: var(--muted); }
+.tag { font-size: 12.5px; font-weight: 600; border-radius: 6px; padding: 3px 8px; }
+.tema { font-weight: 600; }
+.motivo { margin-left: auto; font-size: 12.5px; border-radius: 999px; padding: 3px 10px; border: 1px solid var(--line); color: var(--muted); }
+.motivo.todo { border-color: var(--todo); color: var(--todo); background: var(--todo-soft); }
+.card-body { display: grid; gap: 10px; min-width: 0; }
+.card-body > * { margin: 0; min-width: 0; }
+blockquote { margin: 0; padding: 12px 14px; border-radius: 8px; background: var(--sunk); }
+blockquote p { margin: 0; }
+blockquote p + p { margin-top: 8px; font-size: 14px; color: var(--muted); }
+.table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 8px; }
+table { border-collapse: collapse; width: 100%; font-size: 14px; }
+th, td { text-align: left; padding: 8px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { background: var(--sunk); font-weight: 600; font-size: 13px; }
+tr:last-child td { border-bottom: 0; }
+code { font-family: var(--font-mono); font-size: .9em; background: var(--sunk); padding: 1px 5px; border-radius: 4px; }
+ul { margin: 0; padding-left: 20px; }
+.reveal { display: grid; gap: 10px; min-width: 0; }
+.reveal > * { margin: 0; min-width: 0; }
+.reveal-btn { justify-self: start; font: 600 13px/1 var(--font-body); color: var(--accent); background: var(--accent-soft); border: 0; border-radius: 8px; padding: 10px 14px; cursor: pointer; }
+.empty { color: var(--muted); text-align: center; padding: 24px; border: 1px dashed var(--line); border-radius: 12px; }
+
+/* drop + notice */
+.drop-hint { font-size: 13px; color: var(--muted); }
+.notice { font-size: 13px; color: var(--muted); }
+body.dragging .wrap { outline: 2px dashed var(--accent); outline-offset: 8px; border-radius: 12px; }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+@media (max-width: 520px) { .motivo { margin-left: 0; } .card { padding: 16px; } }
+</style>
+
+<div class="wrap">
+  <header>
+    <div class="eyebrow">AWS Certified Cloud Practitioner · CLF-C02</div>
+    <h1 id="title">Caderno de erros</h1>
+    <p class="meta" id="meta"></p>
+  </header>
+
+  <section aria-label="Erros por domínio" style="display:grid;gap:12px">
+    <div class="summary" id="summary"></div>
+    <div class="motivos" id="motivos"></div>
+  </section>
+
+  <div class="toolbar">
+    <div class="chips" id="chips" role="group" aria-label="Filtrar por domínio"></div>
+    <div class="spacer"></div>
+    <label class="switch" for="flash">
+      <input type="checkbox" id="flash">
+      <span aria-hidden="true"></span>
+      Modo flashcard
+    </label>
+    <label class="btn" for="file">Abrir .md</label>
+    <input type="file" id="file" accept=".md,.markdown,.txt,text/markdown,text/plain" hidden>
+    <button class="btn ghost" id="reset" type="button" hidden>Voltar ao original</button>
+  </div>
+
+  <p class="notice" id="notice" hidden>Esta página foi atualizada desde a última vez que você abriu um arquivo .md aqui, então ela mostra a versão nova. <button class="btn ghost" id="use-local" type="button">Abrir minha versão local</button></p>
+
+  <div id="content" style="display:grid;gap:24px"></div>
+  <p class="drop-hint">Para atualizar, clique em <strong>Abrir .md</strong> ou arraste o arquivo <code>caderno-de-erros.md</code> para esta página. A versão aberta fica salva neste navegador.</p>
+</div>
+
+<script type="text/plain" id="default-md"># Caderno de erros — AWS CLF-C02
+
+- **Prova alvo:** fevereiro/2027
+- **Meta:** 70%+ nos simulados
+
+**Formato:** `[Domínio — tema] — motivo` / Heads-up / Palavras-chave
+**Motivos:** não sabia | confundi serviços | li errado
+**Domínios:** 1 Conceitos (24%) · 2 Segurança (30%) · 3 Serviços (34%) · 4 Preços e suporte (12%)
+
+---
+
+## Simulado 1 — Skill Builder: Official Practice Question Set (20 questões)
+
+- **Data:** 26/10/2026 · **Tentativa:** 1 · **Nota:** 60% (12/20)
+- **Refazer só a partir de:** 23/11/2026
+
+### Q2 · [3 — Serviços de rede] — motivo: confundi serviços
+
+> Uma empresa precisa de uma conexão criptografada entre seus servidores locais e a AWS. A conexão deve usar a internet que a empresa já tem. Qual solução atende?
+>
+> A) Amazon Connect · B) AWS Direct Connect · C) AWS Site-to-Site VPN · D) _(conferir na página)_
+
+**Resposta:** C
+
+**Heads-up:**
+- **Site-to-Site VPN** = túnel **criptografado** passando **pela internet**. Rápido de montar e barato.
+- **Direct Connect** = link **dedicado** e privado. **Não** usa a internet e não é criptografado por padrão.
+
+**Palavras-chave:** "internet existente" + "criptografado" → VPN · "dedicado", "latência consistente", "sem internet" → Direct Connect
+
+---
+
+### Q3 · [2 — Segurança / criptografia] — motivo: _______
+
+> Qual serviço AWS deve ser usado para implementar criptografia em trânsito?
+
+**Resposta:** AWS Certificate Manager (ACM)
+
+**Heads-up:**
+- Em **trânsito** = dado viajando pela rede → TLS/SSL → precisa de **certificado** → **ACM**
+- Em **repouso** = dado guardado (disco, S3, banco) → precisa de **chaves** → **KMS**
+
+**Palavras-chave:** "in transit", "TLS", "HTTPS", "certificado" → ACM · "at rest", "chaves", "criptografar S3/EBS" → KMS
+
+---
+
+### Q4 · [3 — Armazenamento] — motivo: confundi serviços
+
+> Quais funcionalidades são características do Amazon S3? (escolha 2)
+>
+> A) Object store · B) Armazenamento durável · C) Sistema de arquivos de rede · D) Sistema de arquivos global · E) Armazenamento local
+
+**Resposta:** A e B _(eu marquei A e D)_
+
+**Heads-up:** S3 = armazenamento de **objetos**, muito **durável** (11 noves: 99,999999999%). É **regional**: só o **nome** do bucket é global.
+
+| Serviço | Tipo | Uso |
+|---|---|---|
+| **S3** | Objetos | Arquivos via API/URL |
+| **EBS** | Bloco | O "HD" de **uma** instância EC2, numa AZ |
+| **EFS** | Arquivos (NFS) | Compartilhado entre várias EC2 |
+
+**Palavras-chave:** "objeto", "durável", "11 noves" → S3 · "file system", "compartilhado" → EFS · "disco da EC2" → EBS
+
+---
+
+### Q7 · [4 — Preços / Lambda] — motivo: _______
+
+> Como a AWS cobra pelo uso do AWS Lambda depois que o free tier é excedido? (escolha 2)
+>
+> A) Pelo número de versões da função · B) Pelo total de funções na conta · C) Pelo número de requisições · D) Pelo tempo de execução da função · E) Pela linguagem de programação
+
+**Resposta:** C e D _(eu marquei B e C)_
+
+**Heads-up:** Lambda cobra por **requisições** + **duração** da execução (em GB-segundo: tempo × memória configurada). Ter muitas funções paradas **não custa nada**: sem execução, sem cobrança.
+
+| Serviço | Como cobra |
+|---|---|
+| **Lambda** | Requisições + tempo de execução (× memória) |
+| **EC2** | Tempo em que a instância fica **ligada**, mesmo ociosa |
+
+**Palavras-chave:** "serverless", "paga só quando executa" → Lambda · "número de funções", "versões", "linguagem" → **não** influenciam o preço
+
+---
+
+### Q8 · [2 — Segurança / governança] — motivo: _______
+
+> Qual serviço AWS identifica security groups que permitem acesso irrestrito aos recursos do usuário?
+>
+> A) IAM · B) Amazon CloudWatch · C) AWS CloudTrail · D) AWS Trusted Advisor
+
+**Resposta:** D _(eu marquei A)_
+
+**Heads-up:** Trusted Advisor = "consultor" que **verifica a conta** e recomenda boas práticas: custo, segurança, desempenho, tolerância a falhas e limites de serviço. Porta aberta para o mundo (0.0.0.0/0) num security group é um dos checks dele.
+
+| Serviço | Responde à pergunta |
+|---|---|
+| **IAM** | **Quem pode** fazer o quê? (permissões) |
+| **CloudWatch** | **Como está** o desempenho? (métricas, logs, alarmes) |
+| **CloudTrail** | **Quem fez** o quê? (auditoria de chamadas de API) |
+| **Trusted Advisor** | **O que está fora** das boas práticas? (recomendações) |
+
+**Palavras-chave:** "recomendações", "boas práticas", "acesso irrestrito", "otimizar custo" → Trusted Advisor · "permissões", "usuários", "políticas" → IAM · "auditoria", "quem fez" → CloudTrail · "métricas", "alarme" → CloudWatch
+
+---
+
+### Q9 · [1 — Migração] — motivo: _______
+
+> Uma empresa tem um servidor Linux local com um banco Oracle. Ela quer migrar o servidor do banco para rodar numa instância EC2 na AWS. Qual serviço usar?
+>
+> A) AWS Outposts · B) AWS Application Migration Service (MGN) · C) AWS Schema Conversion Tool (SCT) · D) AWS Database Migration Service (DMS)
+
+**Resposta:** B _(eu marquei A)_
+
+**Heads-up:** Migrar o **servidor inteiro** para EC2, do jeito que está = **lift-and-shift** (rehost) = **MGN**.
+
+| Serviço | O que faz |
+|---|---|
+| **MGN** | Copia o **servidor inteiro** (SO + apps + banco) para EC2. Lift-and-shift |
+| **DMS** | Migra os **dados** de um banco para outro banco (ex.: Oracle local → RDS) |
+| **SCT** | **Converte o schema** entre engines diferentes (ex.: Oracle → PostgreSQL). Costuma andar junto com o DMS |
+| **Outposts** | O **contrário** de migrar: leva hardware da AWS para **dentro** do seu datacenter |
+| **Snow Family** | Migra **grandes volumes de dados** fisicamente, num dispositivo enviado pelo correio |
+
+**Palavras-chave:** "servidor" + "EC2" + "como está" → MGN · "banco para banco", "RDS", "dados" → DMS · "trocar de engine", "converter schema" → SCT · "rodar AWS on-premises" → Outposts
+
+---
+
+### Q11 · [4 — Preços / modelos de compra EC2] — motivo: _______
+
+> Qual opção permite comprar capacidade EC2 não utilizada, geralmente com desconto?
+>
+> A) Dedicated Instances · B) Spot Instances · C) On-Demand Instances · D) Reserved Instances
+
+**Resposta:** B _(eu marquei C)_
+
+**Heads-up:** Spot = **sobra** de capacidade da AWS, com até **90% de desconto**. Em troca, a AWS pode **interromper** a instância (com aviso de 2 minutos) quando precisar da capacidade de volta.
+
+| Modelo | Desconto | Quando usar |
+|---|---|---|
+| **On-Demand** | Nenhum (preço cheio) | Uso imprevisível, curto prazo, sem compromisso |
+| **Spot** | Até ~90% | Tarefas que **aguentam interrupção** (batch, processamento, testes) |
+| **Reserved Instances** | Até ~72% | Uso estável e previsível, compromisso de **1 ou 3 anos** |
+| **Savings Plans** | Até ~72% | Compromisso de gasto **por hora** (1 ou 3 anos), mais flexível que RI |
+| **Dedicated Instances / Hosts** | Nenhum (mais caro) | **Compliance** ou **licença** de software atrelada a hardware físico |
+
+**Palavras-chave:** "não usada", "pode ser interrompida", "tolerante a falhas" + "mais barato" → Spot · "1 ou 3 anos", "previsível" → Reserved/Savings Plans · "sem compromisso", "curto prazo" → On-Demand · "licença", "compliance", "hardware dedicado" → Dedicated
+
+---
+
+### Q20 · [3 — Serviços de rede] — motivo: _______
+
+> Uma empresa quer estabelecer uma conexão consistente e privada entre o datacenter local e a AWS. Qual serviço atende?
+>
+> A) Amazon Connect · B) AWS Site-to-Site VPN · C) AWS Client VPN · D) AWS Direct Connect
+
+**Resposta:** D _(eu marquei C)_. Mesmo tema da Q2.
+
+**Heads-up:** "Consistente" + "privada" → Direct Connect: cabo dedicado, a empresa é a única usuária. A VPN passa pela internet, que é compartilhada, então não é nem consistente nem privada (mesmo criptografada).
+
+| Serviço | Conecta | Passa pela internet? |
+|---|---|---|
+| **Site-to-Site VPN** | Rede/datacenter inteiro ↔ AWS | Sim (criptografado) |
+| **Client VPN** | **Pessoas/laptops** ↔ AWS | Sim (criptografado) |
+| **Direct Connect** | Datacenter ↔ AWS por **cabo dedicado** | **Não** |
+| **Amazon Connect** | Nada de rede: é **call center** na nuvem | — |
+
+**Palavras-chave:** "consistente", "privada", "dedicada", "baixa latência" → Direct Connect · "internet existente", "rápido/barato" → Site-to-Site VPN · "funcionários remotos", "laptops" → Client VPN
+
+---
+
+## Quiz 1 — Aula de rede e migração (8 questões)
+
+- **Data:** 28/10/2026 · **Nota:** 75% (6/8)
+
+### Quiz Q4 · [3 — Rede / VPC] — motivo: _______
+
+> Instâncias EC2 numa sub-rede privada precisam baixar atualizações da internet, mas não podem receber conexões vindas da internet. O que usar?
+>
+> A) Internet Gateway na sub-rede privada · B) AWS Direct Connect · C) NAT Gateway · D) VPC peering
+
+**Resposta:** C
+
+**Heads-up:** NAT Gateway = porta que **só abre de dentro para fora**. A sub-rede privada consegue **sair** para a internet (baixar atualização), mas ninguém de fora consegue **entrar**. Ligar a sub-rede direto num Internet Gateway a transformaria em **pública**.
+
+| Recurso | Faz o quê |
+|---|---|
+| **Internet Gateway** | Porta de **entrada e saída** entre a VPC e a internet. Sub-rede com rota para ele = pública |
+| **NAT Gateway** | Só **saída** para a internet, a partir de sub-rede privada |
+| **Direct Connect** | Cabo dedicado datacenter ↔ AWS. Não tem nada a ver com internet |
+| **VPC peering** | Conecta **duas VPCs** entre si, de forma privada |
+
+**Palavras-chave:** "sub-rede privada" + "acessar a internet" + "sem receber conexões" → NAT Gateway · "tornar público", "acesso da internet" → Internet Gateway · "conectar duas VPCs" → VPC peering
+
+---
+
+### Quiz Q6 · [1 — Economia de nuvem] — motivo: _______
+
+> Uma empresa quer pagar apenas pelos recursos que consome, em vez de comprar servidores antecipadamente. Qual vantagem da nuvem descreve isso?
+>
+> A) Beneficiar-se de economias de escala · B) Trocar despesa fixa por despesa variável · C) Tornar-se global em minutos · D) Aumentar velocidade e agilidade
+
+**Resposta:** B
+
+**Heads-up:** "Comprar antes" = despesa **fixa** (CapEx). "Pagar conforme usa" = despesa **variável** (OpEx). A pergunta descreve exatamente essa troca. Economia de escala é outra coisa: é o preço **por unidade** cair porque a AWS compra em volume gigante.
+
+| Vantagem da nuvem | Pista na pergunta |
+|---|---|
+| **Trocar despesa fixa por variável** | "pagar só pelo que usa", "sem investimento antecipado" |
+| **Economia de escala** | "preços mais baixos" porque a AWS tem milhões de clientes |
+| **Parar de adivinhar capacidade** | "escalar conforme a demanda", "sem sobrar nem faltar servidor" |
+| **Velocidade e agilidade** | "recursos em minutos", "experimentar rápido" |
+| **Parar de gastar com datacenter** | "foco no negócio", "sem cuidar de rack e refrigeração" |
+| **Ser global em minutos** | "clientes no mundo todo", "baixa latência global" |
+
+**Palavras-chave:** "pagar pelo que consome", "em vez de comprar antes" → fixa por variável · "preço menor por volume" → economia de escala
+
+---
+
+<!-- Próximas: copie o bloco de uma questão acima e preencha -->
+</script>
+<script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js"></script>
+<script>
+(function () {
+  const DOMAINS = {
+    1: { name: "Conceitos de nuvem", weight: 24 },
+    2: { name: "Segurança e conformidade", weight: 30 },
+    3: { name: "Tecnologia e serviços", weight: 34 },
+    4: { name: "Faturamento, preços e suporte", weight: 12 }
+  };
+  const KEY = "caderno-clf-c02-md";
+  const defaultMd = document.getElementById("default-md").textContent;
+  let state = { filter: 0, flash: false };
+
+  function hash(s) { let h = 0; for (let i = 0; i < s.length; i++) { h = (h * 31 + s.charCodeAt(i)) | 0; } return String(h); }
+  const BASE = hash(defaultMd);
+  function load() { try { return { md: localStorage.getItem(KEY), base: localStorage.getItem(KEY + ":base") }; } catch (e) { return { md: null, base: null }; } }
+  function save(v) { try { if (v == null) { localStorage.removeItem(KEY); localStorage.removeItem(KEY + ":base"); } else { localStorage.setItem(KEY, v); localStorage.setItem(KEY + ":base", BASE); } } catch (e) {} }
+  try { state.flash = localStorage.getItem(KEY + ":flash") === "1"; } catch (e) {}
+
+  function parseHead(text) {
+    const qid = (text.split("·")[0] || "").trim();
+    const dm = text.match(/\[\s*(\d)/);
+    const tm = text.match(/\[\s*\d\s*[—–-]\s*([^\]]+)\]/);
+    const mm = text.match(/motivo:\s*(.*)$/i);
+    let motivo = mm ? mm[1].trim() : "";
+    const todo = !motivo || /^_+$/.test(motivo);
+    return { qid, domain: dm ? +dm[1] : 0, tema: tm ? tm[1].trim() : text, motivo: todo ? "motivo a preencher" : motivo, todo };
+  }
+
+  function wrapTables(root) {
+    root.querySelectorAll("table").forEach(t => {
+      const w = document.createElement("div"); w.className = "table-wrap";
+      t.parentNode.insertBefore(w, t); w.appendChild(t);
+    });
+  }
+
+  function render(md) {
+    const tmp = document.createElement("div");
+    tmp.innerHTML = marked.parse(md);
+    wrapTables(tmp);
+
+    const content = document.getElementById("content");
+    content.innerHTML = "";
+    const cards = [];
+    let group = null, card = null;
+    let introDone = false;
+
+    function newGroup(h2) {
+      group = document.createElement("section");
+      group.style.cssText = "display:grid;gap:12px";
+      if (h2) {
+        const t = document.createElement("h2"); t.className = "section-title"; t.textContent = h2.textContent;
+        group.appendChild(t);
+      }
+      const meta = document.createElement("div"); meta.className = "section-meta";
+      const list = document.createElement("div"); list.className = "cards";
+      group.appendChild(meta); group.appendChild(list);
+      group._meta = meta; group._list = list;
+      content.appendChild(group);
+    }
+
+    const nodes = Array.from(tmp.childNodes);
+    for (const n of nodes) {
+      if (n.nodeType !== 1) continue;
+      const tag = n.tagName;
+      if (tag === "H1") { document.getElementById("title").textContent = n.textContent; continue; }
+      if (!introDone && tag !== "H2" && tag !== "H3") {
+        if (tag === "UL" || tag === "P") {
+          const meta = document.getElementById("meta");
+          const txt = n.textContent.replace(/\s+/g, " ").trim();
+          if (/prova alvo|meta/i.test(txt) && tag === "UL") meta.innerHTML = n.innerHTML.replace(/<\/?li>/g, m => m === "<li>" ? "" : " · ").replace(/ · $/, "");
+        }
+        continue;
+      }
+      introDone = true;
+      if (tag === "H2") { newGroup(n); card = null; continue; }
+      if (tag === "HR") { card = null; continue; }
+      if (tag === "H3") {
+        if (!group) newGroup(null);
+        const info = parseHead(n.textContent);
+        card = { el: document.createElement("article"), info, body: document.createElement("div") };
+        card.el.className = "card";
+        card.el.dataset.domain = info.domain;
+        const d = DOMAINS[info.domain];
+        const head = document.createElement("div"); head.className = "card-head";
+        head.innerHTML =
+          '<span class="qid"></span>' +
+          (d ? '<span class="tag" style="color:var(--d' + info.domain + ');background:var(--d' + info.domain + '-soft)">Domínio ' + info.domain + '</span>' : "") +
+          '<span class="tema"></span><span class="motivo' + (info.todo ? " todo" : "") + '"></span>';
+        head.querySelector(".qid").textContent = info.qid;
+        head.querySelector(".tema").textContent = info.tema;
+        head.querySelector(".motivo").textContent = info.motivo;
+        card.body.className = "card-body";
+        card.el.appendChild(head); card.el.appendChild(card.body);
+        group._list.appendChild(card.el);
+        cards.push(card);
+        continue;
+      }
+      if (card) card.body.appendChild(n);
+      else if (group) group._meta.appendChild(n);
+    }
+
+    // split answer area for flashcard mode
+    cards.forEach(c => {
+      const kids = Array.from(c.body.children);
+      const idx = kids.findIndex(k => /^\s*Resposta\b/i.test(k.textContent));
+      if (idx < 0) return;
+      const reveal = document.createElement("div"); reveal.className = "reveal";
+      kids.slice(idx).forEach(k => reveal.appendChild(k));
+      const btn = document.createElement("button");
+      btn.type = "button"; btn.className = "reveal-btn"; btn.textContent = "Mostrar resposta";
+      btn.addEventListener("click", () => { reveal.hidden = false; btn.hidden = true; });
+      c.body.appendChild(btn); c.body.appendChild(reveal);
+      c.reveal = reveal; c.btn = btn;
+    });
+
+    window.__cards = cards;
+    summarize(cards);
+    applyView();
+  }
+
+  function summarize(cards) {
+    const counts = { 1: 0, 2: 0, 3: 0, 4: 0 };
+    const motivos = {};
+    cards.forEach(c => {
+      if (counts[c.info.domain] != null) counts[c.info.domain]++;
+      motivos[c.info.motivo] = (motivos[c.info.motivo] || 0) + 1;
+    });
+    const max = Math.max(1, ...Object.values(counts));
+    const sum = document.getElementById("summary");
+    sum.innerHTML = "";
+    Object.keys(DOMAINS).forEach(k => {
+      const d = DOMAINS[k];
+      const el = document.createElement("div"); el.className = "dom";
+      el.innerHTML =
+        '<div class="dom-top"><span class="dom-name"><b>' + k + '</b> ' + d.name + '</span><span class="dom-count">' + counts[k] + '</span></div>' +
+        '<div class="dom-bar"><span style="width:' + (counts[k] / max * 100) + '%;background:var(--d' + k + ')"></span></div>' +
+        '<span class="dom-weight">' + d.weight + '% da prova · ' + (counts[k] === 1 ? "1 erro" : counts[k] + " erros") + '</span>';
+      sum.appendChild(el);
+    });
+    const mot = document.getElementById("motivos");
+    mot.innerHTML = '<span>Motivos:</span>';
+    Object.entries(motivos).sort((a, b) => b[1] - a[1]).forEach(([m, n]) => {
+      const s = document.createElement("span");
+      s.className = "m" + (m === "motivo a preencher" ? " todo" : "");
+      s.innerHTML = "<b>" + n + "</b> ";
+      s.appendChild(document.createTextNode(m));
+      mot.appendChild(s);
+    });
+
+    const chips = document.getElementById("chips");
+    chips.innerHTML = "";
+    [[0, "Todos (" + cards.length + ")"]].concat(Object.keys(DOMAINS).map(k => [+k, "D" + k + " (" + counts[k] + ")"])).forEach(([v, label]) => {
+      const b = document.createElement("button");
+      b.type = "button"; b.className = "chip"; b.textContent = label;
+      b.setAttribute("aria-pressed", String(state.filter === v));
+      b.addEventListener("click", () => { state.filter = v; summarize(window.__cards); applyView(); });
+      chips.appendChild(b);
+    });
+  }
+
+  function applyView() {
+    const cards = window.__cards || [];
+    let visible = 0;
+    cards.forEach(c => {
+      const show = !state.filter || c.info.domain === state.filter;
+      c.el.hidden = !show;
+      if (show) visible++;
+      if (c.reveal) { c.reveal.hidden = state.flash; c.btn.hidden = !state.flash; }
+    });
+    document.querySelectorAll(".cards").forEach(list => {
+      let empty = list.querySelector(".empty");
+      const any = Array.from(list.children).some(ch => ch.classList.contains("card") && !ch.hidden);
+      if (!any) {
+        if (!empty) { empty = document.createElement("p"); empty.className = "empty"; empty.textContent = "Nenhum erro deste domínio nesta seção."; list.appendChild(empty); }
+      } else if (empty) empty.remove();
+    });
+    document.getElementById("flash").checked = state.flash;
+  }
+
+  document.getElementById("flash").addEventListener("change", e => {
+    state.flash = e.target.checked;
+    try { localStorage.setItem(KEY + ":flash", state.flash ? "1" : "0"); } catch (err) {}
+    applyView();
+  });
+
+  function useText(text) {
+    save(text);
+    document.getElementById("reset").hidden = false;
+    state.filter = 0;
+    render(text);
+  }
+  document.getElementById("file").addEventListener("change", e => {
+    const f = e.target.files && e.target.files[0];
+    if (!f) return;
+    f.text().then(useText);
+    e.target.value = "";
+  });
+  document.getElementById("reset").addEventListener("click", () => {
+    save(null);
+    document.getElementById("reset").hidden = true;
+    state.filter = 0;
+    render(defaultMd);
+  });
+  ["dragenter", "dragover"].forEach(t => document.addEventListener(t, e => { e.preventDefault(); document.body.classList.add("dragging"); }));
+  ["dragleave", "drop"].forEach(t => document.addEventListener(t, e => { e.preventDefault(); if (t === "drop" || e.target === document.documentElement) document.body.classList.remove("dragging"); }));
+  document.addEventListener("drop", e => {
+    document.body.classList.remove("dragging");
+    const f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+    if (f) f.text().then(useText);
+  });
+
+  const stored = load();
+  if (stored.md && stored.base === BASE) {
+    document.getElementById("reset").hidden = false;
+    render(stored.md);
+  } else {
+    if (stored.md) {
+      const n = document.getElementById("notice");
+      n.hidden = false;
+      document.getElementById("use-local").addEventListener("click", () => { n.hidden = true; useText(stored.md); });
+    }
+    render(defaultMd);
+  }
+})();
+</script>
+
+</body></html>
