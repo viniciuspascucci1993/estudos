@@ -217,4 +217,11 @@
 
 ---
 
+## Quiz 2 — Aula de segurança e conformidade (8 questões)
+
+- **Data:** 02/11/2026 · **Nota:** 100% (8/8), sem consultar a aula
+- Temas: responsabilidade compartilhada (EC2 vs RDS), root user, IAM role, Macie, CloudTrail, Artifact, Secrets Manager
+
+---
+
 <!-- Próximas: copie o bloco de uma questão acima e preencha -->
