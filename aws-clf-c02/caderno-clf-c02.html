@@ -392,6 +392,50 @@ body.dragging .wrap { outline: 2px dashed var(--accent); outline-offset: 8px; bo
 
 ---
 
+## Quiz 3 — Aula de serviços, parte 1 + revisão (10 questões)
+
+- **Data:** 04/11/2026 · **Nota:** 80% (8/10)
+- Temas: computação, armazenamento e bancos de dados, com 3 questões de revisão misturadas
+
+### Quiz Q1 · [3 — Computação / escalabilidade] — motivo: li errado
+
+> O tráfego de uma aplicação web varia muito ao longo do dia. A empresa quer adicionar e remover instâncias EC2 automaticamente conforme a demanda. Qual serviço usar?
+>
+> A) Elastic Load Balancing · B) Amazon EC2 Auto Scaling · C) AWS Lambda · D) Amazon Lightsail
+
+**Resposta:** B _(eu marquei A, sabendo a resposta)_
+
+**Heads-up:** **Auto Scaling** muda a **quantidade** de instâncias. **Load Balancer** **distribui** o tráfego entre as instâncias que já existem. Os dois costumam trabalhar juntos, mas só o Auto Scaling cria e remove.
+
+| Serviço | Faz o quê |
+|---|---|
+| **Auto Scaling** | Adiciona e remove instâncias conforme a demanda |
+| **Elastic Load Balancing** | Distribui requisições entre as instâncias (ALB = HTTP, NLB = TCP) |
+
+**Palavras-chave:** "adicionar/remover instâncias", "conforme a demanda", "escalar automaticamente" → Auto Scaling · "distribuir tráfego", "alta disponibilidade entre instâncias" → Load Balancer
+
+---
+
+### Quiz Q10 · [3 — Rede / VPC] — motivo: confundi serviços · ⚠️ 2º erro neste tema (ver Quiz 1, Q4)
+
+> Instâncias numa sub-rede privada precisam acessar a internet para baixar pacotes, sem ficarem acessíveis a partir da internet. O que usar?
+>
+> A) Internet Gateway associado à sub-rede privada · B) NAT Gateway · C) AWS Direct Connect · D) Security Group liberando 0.0.0.0/0
+
+**Resposta:** B _(eu marquei C)_
+
+**Heads-up:** O **NAT Gateway é o porteiro que só deixa sair**: as instâncias privadas vão à internet buscar pacotes, mas ninguém de fora entra. O **Direct Connect** é um **túnel particular entre dois prédios** (a empresa e a AWS) e não tem nada a ver com acessar a internet.
+
+| Serviço | Conecta o quê | Direção |
+|---|---|---|
+| **NAT Gateway** | Sub-rede privada → internet | Só saída |
+| **Internet Gateway** | VPC ↔ internet | Entrada e saída (torna a sub-rede pública) |
+| **Direct Connect** | Datacenter da empresa → AWS | Cabo dedicado, sem internet |
+
+**Palavras-chave:** "sub-rede privada" + "acessar a internet" + "sem receber conexões" → NAT Gateway · "datacenter" + "dedicado/privado" → Direct Connect
+
+---
+
 <!-- Próximas: copie o bloco de uma questão acima e preencha -->
 </script>
 <script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js"></script>
