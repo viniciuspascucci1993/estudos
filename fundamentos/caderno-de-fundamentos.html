@@ -478,6 +478,69 @@ Alertas na causa (CPU) em vez do sintoma (impacto no cliente), gerando fadiga de
 
 ---
 
+## 7. Incidente: pool de conexões esgotado
+
+**Praticado em:** 05/11/2026 · Exercício de investigação de incidente (observabilidade na prática)
+
+### Resumo
+
+**O cenário:** alerta de SLO de latência no `POST /pagamentos`, sexta às 20h12.
+
+| Etapa | Sinal | Leitura |
+|---|---|---|
+| 1. Métricas RED | Rate normal · p50 normal (85ms) · p99 6,2s · erros 2,3% | A **maioria está normal**; uma **fatia de ~2%** está lenta e vira erro. Não é carga |
+| 2. Traces lentos vs rápidos | `HikariPool.getConnection` = 5,98s; a query leva 28ms | O banco **não** está lento: a requisição está **na fila esperando conexão** |
+| 3. Gauge do pool + logs | Conexões ativas 10/10, pendentes até 30; "Connection is not available"; deploy às 19:50 | **Pool esgotado**, começando logo após um deploy |
+| 4. Trace do estorno | `@Transactional` com HTTP de 4,7s dentro | A transação **segura a conexão** enquanto espera a API externa |
+
+- **Gatilho:** API do banco parceiro lenta (fora do nosso controle).
+- **Causa raiz:** **chamada HTTP externa dentro de transação de banco**, introduzida no deploy.
+- O timeout do pool (6000ms) explica o p99 parado em ~6s e os erros.
+
+**Mitigação imediata:** perguntar **"o que mudou?"** → **rollback** do deploy ou **feature flag**. Primeiro estancar, depois investigar.
+
+**Correção definitiva:**
+- Transações **curtas**: commit antes da chamada externa, nova transação depois
+- Ou **assíncrono**: outbox + worker com retry e **Idempotency-Key** para o parceiro
+- **Timeout** no cliente HTTP, **circuit breaker** e **bulkhead** (limitar a concorrência dos estornos)
+
+### Armadilhas em que caí
+
+- Li o p99 alto como "afeta todo mundo". Com **p50 normal**, a maioria está bem; o problema é a **cauda**.
+- Pensei em usar métrica para o tempo de **cada** requisição. Isso é trabalho do **trace**.
+- Suspeitei de consultas repetidas e cache. A query estava rápida: o problema era o **tempo que a conexão ficava presa**, não a quantidade de consultas.
+- Apontei a API externa como causa raiz. Ela é o **gatilho**; a causa raiz é o **nosso design** (HTTP dentro da transação).
+- Propus **aumentar o pool** como mitigação e como correção. Só adia o problema e pode esgotar o `max_connections` do Postgres (pods × pool). Mitigação = rollback/feature flag; correção = tirar o HTTP da transação.
+
+### Perguntas
+
+<details><summary>Rate normal, p50 normal, p99 explodiu e erros subiram. O que isso diz?</summary>
+
+A maioria das requisições está normal e não é problema de carga. Uma fatia pequena está muito lenta, e provavelmente estoura timeout virando erro. É algo específico atingindo parte das requisições.
+</details>
+
+<details><summary>O trace mostra getConnection lento e a query rápida. O que está acontecendo?</summary>
+
+O banco não está lento: a requisição espera na fila por uma conexão livre. O pool está esgotado porque algo segura as conexões por muito tempo. Confirma-se com o gauge de conexões ativas/pendentes e os logs de timeout do pool.
+</details>
+
+<details><summary>Por que aumentar o pool não resolve?</summary>
+
+Só adia: com mais lentidão ou mais carga, o pool maior esgota igual. E pode estourar o max_connections do banco, já que cada pod tem seu pool. A causa (conexão presa) continua.
+</details>
+
+<details><summary>Primeira ação num incidente que começou logo após um deploy?</summary>
+
+Rollback do deploy ou desligar a funcionalidade por feature flag. Primeiro restaurar o serviço, depois investigar a causa com calma.
+</details>
+
+<details><summary>Como corrigir uma chamada HTTP externa dentro de uma transação?</summary>
+
+Separar em transações curtas (commit antes da chamada, nova transação depois) ou tornar assíncrono com outbox + worker com retry e Idempotency-Key. Somar timeout no cliente HTTP, circuit breaker e bulkhead.
+</details>
+
+---
+
 <!-- Próximo tema: copie a estrutura de uma seção (Resumo / Armadilhas em que caí / Perguntas) -->
 </script>
 <script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js"></script>
