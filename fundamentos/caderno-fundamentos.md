@@ -379,4 +379,113 @@ Separar em transações curtas (commit antes da chamada, nova transação depois
 
 ---
 
+## 8. Persistência e migrations
+
+**Praticado em:** 06/11 e 08/11/2026 · **No projeto:** ledger-service, semana 2 (branch `feat/persistencia-lancamento`)
+
+### Resumo
+
+**Flyway**
+- Arquivo em `src/main/resources/db/migration/`, nome `V1__descricao.sql` (V maiúsculo, versão, **dois** underscores).
+- **Migration aplicada não se edita.** O Flyway grava um checksum em `flyway_schema_history`; mudar o arquivo impede a aplicação de subir. Correção = migration nova (`V2__...`). Por isso a revisão vem **antes** de rodar.
+- Com `ddl-auto: validate`, o Hibernate confere na subida se as entidades batem com as tabelas. O Flyway manda no schema; o Hibernate só verifica.
+
+**O schema também comunica o negócio**
+- `CHECK (valor_em_centavos > 0)` e `CHECK (tipo IN ('DEBITO', 'CREDITO'))` repetem regras do domínio: **defesa em profundidade**. O domínio Java não é o único que escreve na tabela (SQL manual, scripts, outro serviço, bug).
+- Sem coluna `atualizado_em`: lançamento é **imutável**; correção é estorno.
+- Chave estrangeira no banco (`REFERENCES lancamentos (id)`), mesmo sem relacionamento no JPA.
+- Índices em `partidas(conta_id)` (cálculo de saldo) e `partidas(lancamento_id)`. A chave primária já tem índice automático.
+- **Moeda** (ADR-001): no **lançamento**, para todas as partidas ficarem na mesma moeda e a regra de equilíbrio continuar valendo. Lacuna ainda não implementada.
+
+**Domínio com identidade**
+
+| Método | Para quê | id e data | Valida? |
+|---|---|---|---|
+| `criar` | Lançamento **novo** | Gera `UUID.randomUUID()` e `Instant.now()` | Sim |
+| `reconstruir` | Lançamento que **já existe** no banco | **Preserva** os valores do banco | Não (já foi validado ao entrar; regra nova não pode quebrar dado antigo) |
+
+- `Instant` é o par natural do `TIMESTAMPTZ`.
+- Teste: `assertNotNull` para valor aleatório (criar), `assertEquals` para valor controlado (reconstruir).
+
+**Arquitetura hexagonal**
+- O port (`application/port/out/LancamentoRepository`) é uma **interface** que a aplicação define.
+- O service **chama** o port; o adapter JPA **implementa** o port. O adapter depende da aplicação, nunca o contrário: **inversão de dependência**.
+- Ganhos: testar regra sem banco (repositório falso) e trocar a persistência sem tocar no domínio.
+- `Optional` no `buscarPorId` deixa explícito na assinatura que pode não existir, e força quem chama a tratar (ex.: `orElseThrow` → 404). `null` não avisa nada.
+- Criar só os pacotes que vão ser usados agora. Pasta vazia não ajuda.
+
+**Entidades JPA**
+- Separadas do domínio: o domínio fica sem anotação; o adapter traduz um no outro.
+- Construtor vazio `protected` (exigido pelo JPA) e sem setters (entidade imutável; com `@Id` no campo, o JPA acessa os campos direto).
+- `@Enumerated(EnumType.STRING)`: grava `"DEBITO"`. Sem isso, grava a posição (0/1) e o `CHECK` recusa.
+- `open-in-view: false`: com ele ligado, a conexão fica presa durante a requisição inteira (mesma família do incidente de pool).
+
+**Relacionamentos JPA vs referência por ID**
+
+| | `@OneToMany` / `@ManyToOne` | Referência por ID (UUID) |
+|---|---|---|
+| Ganho | Conveniência: navega `lancamento.getPartidas()` sem query | Controle: você sabe exatamente que queries rodam |
+| Custo | Queries escondidas (N+1), `LazyInitializationException`, cascade com efeito colateral, grafos enormes | Escrever as consultas explicitamente |
+| Bom para | CRUDs e domínios pequenos | Sistemas grandes; entre agregados (DDD) |
+
+> "Relacionamentos JPA trocam controle por conveniência. Em domínios pequenos compensa; em sistemas grandes prefiro referência por ID e queries explícitas, porque o comportamento no banco fica previsível."
+
+**Lendo erro de conexão**
+
+| Mensagem | Significa |
+|---|---|
+| `password authentication failed` | Há um Postgres respondendo, mas recusou usuário/senha |
+| `Connection refused` | **Não há Postgres** escutando naquela porta (container parado) |
+
+### Armadilhas em que caí
+
+- Coluna `created_at` num schema todo em português. **Um idioma só** no schema.
+- `REFERENCES (lancamentos)`: o certo é `REFERENCES lancamentos (id)` (tabela, depois coluna).
+- `CHECK ( IN 'CREDITO' | 'DEBITO')`: faltou a coluna, e o separador é vírgula: `CHECK (tipo IN ('DEBITO', 'CREDITO'))`.
+- Misturei o `CHECK` do valor com a moeda (`IN ('BRL', 'USD')`). Valor é número: `CHECK (valor_em_centavos > 0)`.
+- Criei o índice de `lancamento_id` na tabela `lancamentos`. A coluna mora em `partidas`.
+- Respondi que a falta de `atualizado_em` "é vista pelo índice". O motivo é a **imutabilidade** do lançamento.
+- Disse que "o JPA chama o repository". É o **service que chama**; o adapter JPA **implementa**.
+- Deixei comentários `// ???` no código já resolvido, mais de uma vez.
+- Typo `valorEmXentavos` e setters numa entidade imutável.
+
+### Perguntas
+
+<details><summary>Por que uma migration aplicada não pode ser editada?</summary>
+
+O Flyway grava o checksum de cada migration aplicada. Se o arquivo mudar, o checksum não bate e a aplicação para de subir. Correção se faz com uma migration nova.
+</details>
+
+<details><summary>Se o domínio já valida valor > 0, por que um CHECK no banco?</summary>
+
+Defesa em profundidade: o domínio não é o único que escreve na tabela (SQL manual, scripts, outro serviço, bugs). O banco garante a regra para qualquer escritor.
+</details>
+
+<details><summary>Por que a tabela de lançamentos não tem atualizado_em?</summary>
+
+Lançamento é imutável: nunca é alterado, só estornado com um novo lançamento. Ter atualizado_em sugeriria que editar é permitido.
+</details>
+
+<details><summary>Por que criar e reconstruir são métodos separados?</summary>
+
+Criar gera identidade nova (id e data) e valida. Reconstruir preserva o id e a data do banco. Usar criar na leitura mudaria o id a cada leitura e falsificaria o histórico.
+</details>
+
+<details><summary>Quem chama e quem implementa o port do repositório?</summary>
+
+O service da aplicação chama a interface; o adapter JPA a implementa. A dependência aponta do adapter para a aplicação (inversão de dependência), o que permite testar sem banco e trocar a persistência.
+</details>
+
+<details><summary>Por que @Enumerated(EnumType.STRING)?</summary>
+
+Sem ele o JPA grava a posição do enum (0, 1). Com STRING grava o nome ("DEBITO"), que é legível, não quebra se a ordem do enum mudar e bate com o CHECK da tabela.
+</details>
+
+<details><summary>@OneToMany ou referência por ID?</summary>
+
+Relacionamentos trocam controle por conveniência: risco de N+1, lazy loading e cascades. Em domínios pequenos compensam; em sistemas grandes, referência por ID e queries explícitas deixam o comportamento previsível.
+</details>
+
+---
+
 <!-- Próximo tema: copie a estrutura de uma seção (Resumo / Armadilhas em que caí / Perguntas) -->
