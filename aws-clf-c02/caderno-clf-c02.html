@@ -1,4 +1,4 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
 <meta charset="utf-8">
@@ -433,6 +433,81 @@ body.dragging .wrap { outline: 2px dashed var(--accent); outline-offset: 8px; bo
 | **Direct Connect** | Datacenter da empresa → AWS | Cabo dedicado, sem internet |
 
 **Palavras-chave:** "sub-rede privada" + "acessar a internet" + "sem receber conexões" → NAT Gateway · "datacenter" + "dedicado/privado" → Direct Connect
+
+---
+
+## Quiz 4 — Aula de serviços, parte 2 + revisão (10 questões)
+
+- **Data:** 09/11/2026 · **Nota:** 70% (7/10)
+- Acertei as 7 de conteúdo novo (CloudFront, SQS, SNS, Athena, Kinesis, CloudFormation, Textract). Os 3 erros foram de **arquitetura**: como as peças se encaixam.
+- Depois, no exercício de recordação (explicar o caminho da requisição sem consulta), acertei tudo.
+
+**A imagem que liga os três erros:**
+
+```
+                     Usuários (internet)
+                            │
+                     ┌──────▼───────┐
+                     │ Load Balancer│  ← distribui as requisições
+                     └──┬────────┬──┘
+           ┌────────────┘        └────────────┐
+   ┌───────▼────────┐                 ┌───────▼────────┐
+   │     AZ  A      │                 │     AZ  B      │  ← duas AZs: se uma cai, a outra segue
+   │   EC2   EC2    │                 │   EC2   EC2    │  ← Auto Scaling decide quantas EC2 existem
+   │ sub-rede privada                 │ sub-rede privada
+   └───────┬────────┘                 └───────┬────────┘
+           └──────────►  NAT Gateway  ◄───────┘          ← EC2 privadas SAEM para updates; ninguém ENTRA
+                             │
+                         internet
+```
+
+**Dica de prova:** em questão de rede ou disponibilidade, montar esta imagem mentalmente e ver em que ponto do caminho a pergunta está.
+
+### Quiz Q8 · [3 — Infraestrutura global / disponibilidade] — motivo: _______
+
+> Uma aplicação precisa continuar funcionando mesmo se um datacenter inteiro da região falhar. Qual é a prática recomendada?
+>
+> A) Usar uma instância EC2 maior · B) Implantar em várias zonas de disponibilidade · C) Usar edge locations do CloudFront · D) Ativar o AWS Shield Advanced
+
+**Resposta:** B
+
+**Heads-up:** Cada **AZ** é um ou mais datacenters isolados dentro da região. Rodar em **várias AZs** = alta disponibilidade. Instância maior não ajuda se o datacenter inteiro cair.
+
+| Pergunta fala em | Resposta |
+|---|---|
+| "falha de um datacenter", "alta disponibilidade" | **Várias AZs** |
+| "desastre regional", "perda de uma região inteira" | **Várias regiões** |
+| "baixa latência para usuários no mundo" | **Edge locations / CloudFront** |
+
+**Palavras-chave:** "datacenter falhar", "alta disponibilidade", "tolerância a falhas" → multi-AZ
+
+---
+
+### Quiz Q9 · [3 — Computação / balanceamento] — motivo: _______ · ⚠️ inverso do Quiz 3, Q1
+
+> Várias instâncias EC2 rodam a mesma aplicação e a empresa quer distribuir as requisições HTTP dos usuários entre elas. Qual serviço?
+>
+> A) Amazon EC2 Auto Scaling · B) Application Load Balancer · C) Amazon Route 53 · D) AWS Global Accelerator
+
+**Resposta:** B
+
+**Heads-up:** **Load Balancer distribui** entre as instâncias que já existem. **Auto Scaling dimensiona** (muda quantas existem). Os dois trabalham juntos, mas fazem coisas diferentes.
+
+**Palavras-chave:** "distribuir requisições/tráfego entre instâncias" → Load Balancer · "adicionar/remover instâncias conforme a demanda" → Auto Scaling
+
+---
+
+### Quiz Q10 · [3 — Rede / VPC] — motivo: _______ · ⚠️ 3º erro neste tema (ver Quiz 1 Q4 e Quiz 3 Q10)
+
+> Servidores de banco numa sub-rede privada precisam baixar atualizações de segurança da internet, mas nenhuma conexão vinda da internet pode alcançá-los. O que usar?
+>
+> A) AWS Direct Connect · B) Internet Gateway na sub-rede privada · C) NAT Gateway · D) AWS Site-to-Site VPN
+
+**Resposta:** C
+
+**Heads-up:** O NAT só existe **porque** as instâncias estão em sub-rede **privada**: ele é o porteiro que deixa **sair** e não deixa **entrar**. Direct Connect e Site-to-Site VPN ligam o **datacenter da empresa** à AWS, não têm nada a ver com acessar a internet.
+
+**Palavras-chave:** "sub-rede privada" + "acessar a internet / baixar atualizações" + "sem conexões de entrada" → NAT Gateway
 
 ---
 
