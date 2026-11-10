@@ -488,4 +488,80 @@ Relacionamentos trocam controle por conveniência: risco de N+1, lazy loading e 
 
 ---
 
+## 9. Padrões de resiliência
+
+**Estudado em:** 10/11/2026 · **Referências:** Resilience4j · *Release It!* (Michael Nygard)
+
+### Resumo
+
+- Dependências **vão** falhar. Objetivo: **falhar rápido, isolar o estrago e se recuperar**.
+- **Lenta é pior que fora do ar:** a lenta prende **threads e conexões** enquanto você espera, até os pools esgotarem. A fora do ar falha na hora e devolve o recurso. (Foi o incidente do pool.)
+
+| Padrão | O que faz | Regra de ouro |
+|---|---|---|
+| **Timeout** | Limita quanto se espera (connect e read) | Toda chamada remota tem um; valor baseado no p99 da dependência |
+| **Retry** | Tenta de novo falhas transitórias | Só transitórios (503, 504, timeout), só idempotente, tentativas limitadas, backoff + jitter, **uma camada só** |
+| **Circuit breaker** | Para de chamar a dependência que está falhando | Fechado → aberto (passou do limite de falhas) → meio-aberto (testa) → fecha ou reabre |
+| **Bulkhead** | Recursos separados por dependência | Uma dependência lenta esgota só o próprio compartimento |
+| **Fallback** | Resposta alternativa quando falha | Cache, valor padrão ou enfileirar para depois (outbox) |
+
+**Retry**
+- **Não repetir** erros 4xx (`400`, `404`, `422`): falham igual. O `500` é ambíguo.
+- **Não repetir** operação não idempotente sem Idempotency-Key: retry de pagamento = cobrança duplicada.
+- **Backoff exponencial** dá tempo para a dependência se recuperar; **jitter** (valor aleatório) evita que todos os clientes tentem no mesmo instante (*thundering herd*).
+
+**Circuit breaker**
+
+| Estado | Comportamento |
+|---|---|
+| Fechado | Chamadas passam; conta as falhas |
+| Aberto | Passou do limite → falha na hora, sem chamar |
+| Meio-aberto | Após um tempo, deixa algumas passarem. Ok → fecha; falhou → abre |
+
+- Protege **você** (falha em ms, sem segurar threads) e a **dependência** (para de ser bombardeada enquanto se recupera).
+
+**Falha em cascata (A → B → C → D, cada um com 3 retries e 10s de timeout, D lento)**
+- Retries se multiplicam: 3 × 3 × 3 = **27 chamadas** no D por requisição.
+- Timeouts se empilham: C espera até 30s, B até 90s, A até **270s**, todos segurando threads → todos os pools esgotam.
+- Redesenho: retry só na camada externa; **timeouts decrescentes** com *deadline propagation*; circuit breaker e bulkhead em C → D; fallback.
+
+**Na prática (Java):** Resilience4j (`@CircuitBreaker`, `@Retry`, `@Bulkhead`, `@TimeLimiter`) com Spring Boot. Hystrix foi descontinuado. Monitorar estado do circuito, quantidade de retries e recusas do bulkhead.
+
+### Armadilhas em que caí
+
+- Respondi que lenta é pior "porque pode estourar timeout". O timeout é a **proteção**; o motivo é que a lenta **prende threads e conexões**.
+- Dei o `500` como exemplo de erro para não repetir. Os exemplos claros são os **4xx**; o 500 é ambíguo.
+- Inverti o caso da idempotência: não se repete operação **não idempotente** (sem Idempotency-Key).
+- Não soube explicar backoff com jitter.
+- Na cascata, não quantifiquei: **27 chamadas** no D e até **270s** de espera em A.
+
+### Perguntas
+
+<details><summary>Por que uma dependência lenta é pior do que uma fora do ar?</summary>
+
+A lenta prende threads e conexões enquanto você espera, até os pools esgotarem e o seu serviço parar. A fora do ar falha na hora e devolve o recurso.
+</details>
+
+<details><summary>Quando não fazer retry?</summary>
+
+Em erros não transitórios (4xx como 400, 404, 422), que falham igual de novo, e em operações não idempotentes sem Idempotency-Key, em que o retry duplicaria o efeito (ex.: cobrança).
+</details>
+
+<details><summary>Por que backoff exponencial com jitter?</summary>
+
+O backoff exponencial dá tempo para a dependência se recuperar, em vez de martelá-la. O jitter soma um valor aleatório para os clientes não tentarem todos no mesmo instante, evitando ondas sincronizadas.
+</details>
+
+<details><summary>Quais os três estados do circuit breaker?</summary>
+
+Fechado: chamadas passam e as falhas são contadas. Aberto: passou do limite, falha na hora sem chamar. Meio-aberto: após um tempo, deixa algumas chamadas passarem; se derem certo fecha, se falharem reabre.
+</details>
+
+<details><summary>A → B → C → D, cada um com 3 retries e timeout de 10s, D fica lento. O que acontece e como redesenhar?</summary>
+
+Os retries se multiplicam (27 chamadas no D por requisição) e os timeouts se empilham (A pode esperar 270s), com todas as camadas segurando threads: falha em cascata. Redesenho: retry só na camada externa com backoff e jitter, timeouts decrescentes com deadline propagation, circuit breaker e bulkhead em C → D, e fallback.
+</details>
+
+---
+
 <!-- Próximo tema: copie a estrutura de uma seção (Resumo / Armadilhas em que caí / Perguntas) -->
