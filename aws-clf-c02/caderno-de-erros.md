@@ -344,4 +344,50 @@ _Motivos dos erros de 26/10 a 09/11 estimados na revisão de 09/11; daqui em dia
 
 ---
 
+## Quiz 5 — Aula de faturamento e suporte + revisão (10 questões)
+
+- **Data:** 11/11/2026 · **Nota:** 80% (8/10)
+- Acertei as 2 de revisão, incluindo o **NAT Gateway** (depois de 3 erros) e Inspector vs GuardDuty.
+- Com esta aula, os **4 domínios** foram cobertos.
+
+### Quiz Q1 · [4 — Faturamento / várias contas] — motivo: li errado
+
+> Uma empresa tem 12 contas AWS e quer receber uma única fatura, aproveitando os descontos por volume somados de todas as contas. O que usar?
+>
+> A) AWS Budgets · B) Faturamento consolidado do AWS Organizations · C) AWS Cost Explorer · D) AWS Control Tower
+
+**Resposta:** B _(eu marquei D, sabendo a resposta)_
+
+**Heads-up:** Os dois são de "várias contas", mas fazem coisas diferentes. O **Organizations** gerencia as contas, e o **faturamento consolidado** é recurso dele (uma fatura, descontos somados). O **Control Tower** **monta** um ambiente multi-conta já seguindo boas práticas.
+
+| Serviço | Pista |
+|---|---|
+| **Organizations** | "várias contas", "uma fatura", "descontos somados", "SCP" |
+| **Control Tower** | "configurar/montar ambiente multi-conta com boas práticas" (landing zone) |
+
+**Palavras-chave:** "fatura única", "consolidado", "descontos por volume entre contas" → Organizations
+
+---
+
+### Quiz Q5 · [4 — Planos de suporte] — motivo: li errado
+
+> Uma empresa precisa de suporte técnico 24/7 por telefone e de resposta em menos de 1 hora quando um sistema de produção cair. Qual o plano mais barato que atende?
+>
+> A) Developer · B) Business · C) Enterprise On-Ramp · D) Enterprise
+
+**Resposta:** B _(eu marquei C, sabendo a resposta)_
+
+**Heads-up:** O Enterprise On-Ramp também atende, mas a pergunta pedia o **mais barato**. Em questão de suporte, procurar sempre o **"mais barato que atende"**.
+
+| Plano | Caso mais grave | Destaque |
+|---|---|---|
+| Developer | Sistema prejudicado: < 12h | E-mail, horário comercial |
+| **Business** | **Produção fora do ar: < 1h** | **O mais barato com 24/7** |
+| Enterprise On-Ramp | Crítico fora do ar: < 30 min | Grupo de TAMs |
+| Enterprise | Crítico fora do ar: < 15 min | TAM dedicado |
+
+**Palavras-chave:** "24/7" ou "produção em 1 hora" + "mais barato" → Business · "TAM dedicado" ou "15 minutos" → Enterprise
+
+---
+
 <!-- Próximas: copie o bloco de uma questão acima e preencha -->
