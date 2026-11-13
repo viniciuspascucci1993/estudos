@@ -564,4 +564,75 @@ Os retries se multiplicam (27 chamadas no D por requisição) e os timeouts se e
 
 ---
 
+## 10. Incidente: cascata de timeouts
+
+**Praticado em:** 12/11/2026 · Lab de incidentes #2 (aplicando os padrões de resiliência)
+
+### Resumo
+
+**O cenário:** esquenta da Black Friday, 19h07. Cadeia `App → BFF → payments → antifraude → ScoreBR (bureau externo)`, com o BFF também chamando o catálogo. Erro do BFF em 35%, sem deploy no dia, tráfego 1,5x (esperado).
+
+| Passo | Leitura |
+|---|---|
+| 1. Impacto | **35%** das requisições falhando desde ~19h, inclusive **quem só navega**. Vendas paradas no pico: prioridade máxima |
+| 2. O que mudou | Sem deploy → mudança veio de **fora**: dependência externa + tráfego |
+| Onde começa | No **fim da cadeia**: o antifraude tem o maior erro e é o último serviço interno; os p99 crescem subindo a cadeia. Os de cima só **herdam** a lentidão |
+| O enigma | `GET /produtos` falha com catálogo saudável porque o BFF tem **um pool de threads só**: checkouts presos por 30s ocupam todas as threads e a navegação nem consegue começar (**sem bulkhead**) |
+| 4. Evidência | Trace: antifraude faz 3 tentativas de 10s no ScoreBR. Pool do BFF em 200/200. Status page do ScoreBR: degradado desde 18:52 |
+
+- **Gatilho:** ScoreBR lento (+ tráfego 1,5x). Externo, vai acontecer de novo.
+- **Causa raiz:** o nosso design não aguentou: **sem circuit breaker e sem fallback** no antifraude (até 30s de espera), **sem bulkhead** no BFF, **timeouts não decrescentes**.
+
+**Mitigação (sem deploy, por config/feature flag):** fallback na análise de fraude, por exemplo:
+- valor baixo → aprovar com **regras internas**, sem o ScoreBR
+- valor alto → **"em análise"**, numa fila para quando o ScoreBR voltar
+- É uma **decisão de negócio** (mais risco de fraude vs vendas perdidas): levar ao negócio com números.
+
+**Prevenção:**
+
+| Onde | O quê |
+|---|---|
+| Antifraude → ScoreBR | Circuit breaker + fallback; timeout curto (~1,5s, pelo p99); no máximo 1 retry com backoff e jitter |
+| BFF | Bulkhead: limites separados para checkout e catálogo |
+| Cadeia inteira | Timeouts decrescentes (BFF 5s > payments 4s > antifraude 3s > ScoreBR 1,5s), deadline propagation |
+| Observabilidade | Alerta na latência do ScoreBR e na abertura do circuito |
+
+### Armadilhas em que caí
+
+- Descrevi o impacto sem números: faltaram os **35%**, o **desde quando** e o fato de **até a navegação** estar afetada.
+- Apontei o **payments** como origem. Numa cascata, a origem quase sempre está no **fim da cadeia**.
+- Achei que o catálogo estava degradando. Os números dele estavam normais: o problema era o **pool de threads compartilhado do BFF**.
+- Confundi gatilho e causa raiz de novo (2º lab seguido). **Gatilho = o que disparou (externo); causa raiz = por que o nosso sistema não aguentou.**
+- Propus "um fallback até o novo deploy" sem dizer **qual** fallback, e dependendo de deploy. Mitigação boa é **config/feature flag**, e o fallback precisa ser concreto.
+- Na prevenção, citei os padrões certos, mas sem dizer **onde** cada um entra.
+
+### Perguntas
+
+<details><summary>Numa cascata de lentidão, como achar onde o problema começa?</summary>
+
+Olhando a cadeia de baixo para cima: o serviço mais ao fundo que está degradado (aqui, o último serviço interno) costuma ser a origem, e os de cima só herdam a lentidão. Os p99 crescem conforme se sobe na cadeia, porque o tempo se acumula.
+</details>
+
+<details><summary>Por que um endpoint que só chama um serviço saudável falha durante a cascata?</summary>
+
+Porque o serviço de entrada (o BFF) compartilha um pool de threads entre todos os endpoints. As requisições presas na chamada lenta ocupam todas as threads, e as outras requisições nem conseguem começar. Falta de bulkhead.
+</details>
+
+<details><summary>Neste incidente, qual foi o gatilho e qual foi a causa raiz?</summary>
+
+Gatilho: o ScoreBR ficou lento (somado ao tráfego maior). Causa raiz: o nosso design não aguentou, porque faltavam circuit breaker e fallback no antifraude e bulkhead no BFF, e os timeouts não diminuíam ao longo da cadeia.
+</details>
+
+<details><summary>Como mitigar sem deploy quando uma dependência externa de antifraude degrada?</summary>
+
+Ligar por config ou feature flag um fallback: aprovar compras de baixo valor com regras internas e colocar as de alto valor em análise numa fila. É uma decisão de negócio (mais risco vs vendas perdidas), que se leva ao negócio com números.
+</details>
+
+<details><summary>Onde entra cada padrão de resiliência numa cadeia BFF → payments → antifraude → bureau externo?</summary>
+
+Circuit breaker, fallback, timeout curto e no máximo 1 retry com backoff na chamada antifraude → bureau; bulkhead no BFF separando checkout e catálogo; timeouts decrescentes com deadline propagation na cadeia inteira; alertas na latência do bureau e na abertura do circuito.
+</details>
+
+---
+
 <!-- Próximo tema: copie a estrutura de uma seção (Resumo / Armadilhas em que caí / Perguntas) -->
