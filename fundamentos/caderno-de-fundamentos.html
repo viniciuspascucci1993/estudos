@@ -797,6 +797,90 @@ Circuit breaker, fallback, timeout curto e no máximo 1 retry com backoff na cha
 
 ---
 
+## 11. Adapter, Spring Data e testes de integração
+
+**Praticado em:** 13/11 e 14/11/2026 · **No projeto:** ledger-service, fim da semana 2 (PR #2, tag `v0.2.0`)
+
+### Resumo
+
+**Spring Data**
+- `interface XJpaRepository extends JpaRepository<Entidade, TipoDoId>` já traz `save`, `findById`, `saveAll`...
+- **Query derivation:** o Spring lê o nome do método e monta a query. `findByLancamentoId(UUID)` → `WHERE lancamento_id = ?`. O nome segue o vocabulário (`findBy` + campo, `And`, `Or`, `OrderBy`); nome livre não funciona e a aplicação nem sobe.
+- Consulta complexa (JOIN, SUM, nome livre) → `@Query`.
+
+**Adapter (implementa o port)**
+- `salvar`: traduz domínio → entidades; o `lancamentoId` da partida vem do **lançamento** (a partida do domínio não sabe a que lançamento pertence).
+- **`@Transactional` = atomicidade:** sem ele, cada `save` commita sozinho e um lançamento pode ficar gravado sem partidas. Com ele, tudo ou nada.
+- **Lançamento antes das partidas:** a chave estrangeira exige que o pai exista primeiro.
+- `buscarPorId` com `@Transactional(readOnly = true)`; `findById` já devolve `Optional`, e o `map` só roda se existir.
+- **Visibilidade:** adapter e repositórios sem `public` → o compilador impede que alguém pule o port. Alternativa: testes de arquitetura com **ArchUnit**.
+
+**Testes de integração com Testcontainers**
+- Sobe um Postgres real num container; `@ServiceConnection` liga a aplicação nele sem configurar URL.
+- **Mesma imagem da produção** (`postgres:17-alpine`), nunca `latest`.
+- Vantagem sobre H2: H2 não é o Postgres (precisão, tipos, regras). Também há módulos para Kafka, RabbitMQ, Redis, LocalStack.
+- Custo: segundos por teste → **pirâmide**: muitos testes unitários, poucos de integração.
+- O teste injeta o **port**, não o adapter: testa pelo contrato.
+
+**O que o teste de integração pegou**
+- **Precisão de data:** Java no Windows gera 100 ns; Postgres guarda microssegundos e **arredonda**. Correção no domínio: `Instant.now().truncatedTo(ChronoUnit.MICROS)`.
+- Consulta sem `ORDER BY` **não garante ordem**: procurar a partida pelo **id**, nunca por posição.
+
+**SELECT antes de cada INSERT**
+- O `save()` decide insert vs update pela regra "id nulo = novo". Com UUID gerado na aplicação, o id nunca é nulo, então ele faz um SELECT antes de cada gravação (3 queries a mais num lançamento com 2 partidas).
+- Correção: a entidade implementa **`Persistable`** e diz quando é nova. Pergunta clássica para quem usa UUID gerado na aplicação.
+- `spring.jpa.show-sql=true` mostra o SQL; os INSERTs vão juntos no commit, respeitando a ordem da FK.
+
+**Git**
+- Branch mergeada se apaga: o histórico fica na `main` e nas PRs (com "Restore branch").
+- Marcos com **tags** (`git tag -a v0.2.0 -m "..."`), que podem virar Releases.
+
+### Armadilhas em que caí
+
+- Nomeei o método `searchForAllPartidas`: fora do vocabulário do Spring Data, a aplicação não sobe. O certo é `findByLancamentoId`.
+- Usei `UUID.randomUUID()` como `lancamentoId` das partidas (a FK recusaria). O certo é `lancamento.getId()`.
+- Esqueci o `saveAll` das partidas: bug **silencioso**, lançamento gravado sem partidas.
+- Disse que o `@Transactional` "serve para dar flush". O motivo é a **atomicidade**.
+- Disse "ordem de prevalência" para salvar o lançamento antes. O motivo é a **chave estrangeira**.
+- Aceitei o `findBy(id)` do autocomplete embrulhado em `Objects.requireNonNull`; o erro apareceu na linha de baixo (`getId()` não encontrado). Causa na linha de cima.
+- Achei que "subiu sem erro" provava que o adapter funcionava. Só o teste de integração prova.
+- Filtrei a partida pelo `contaId` (funciona por coincidência) e depois comparei `getId()` com `getContaId()`.
+- Tentei `assertThrows` no id inexistente: o port devolve `Optional` vazio, não lança exceção.
+
+### Perguntas
+
+<details><summary>Como o Spring Data cria a query de findByLancamentoId?</summary>
+
+Ele interpreta o nome do método: findBy + o campo lancamentoId da entidade vira WHERE lancamento_id = ?. Nomes fora desse vocabulário fazem a aplicação falhar na subida; consultas complexas usam @Query.
+</details>
+
+<details><summary>Por que o salvar do adapter precisa de @Transactional?</summary>
+
+Para gravar lançamento e partidas atomicamente. Sem ele, cada save commita sozinho; se o das partidas falhar, o lançamento fica gravado sem partidas e o ledger desequilibra.
+</details>
+
+<details><summary>Por que usar Testcontainers em vez de H2?</summary>
+
+O H2 não é o Postgres: tem outra precisão de data, outros tipos e outras regras. Com Testcontainers o teste roda contra o mesmo banco e versão da produção e pega problemas reais (precisão, CHECK, chave estrangeira).
+</details>
+
+<details><summary>Por que o teste falhou comparando a data de criação?</summary>
+
+O Java no Windows gera Instant com 100 ns de precisão e o Postgres guarda microssegundos, arredondando. O valor mudava na ida ao banco. Correção: o domínio trunca para microssegundos ao criar.
+</details>
+
+<details><summary>Por que aparece um SELECT antes de cada INSERT com UUID gerado na aplicação?</summary>
+
+O save() do Spring Data considera nova a entidade com id nulo. Com o id já preenchido, ele não sabe se ela existe e consulta o banco antes. A entidade pode implementar Persistable para dizer explicitamente quando é nova.
+</details>
+
+<details><summary>O que prova que um adapter de persistência funciona?</summary>
+
+Um teste de integração que grava e lê de volta de um banco real, conferindo os campos (inclusive tipo e ids). A aplicação subir só prova que compila e que o Spring montou os beans.
+</details>
+
+---
+
 <!-- Próximo tema: copie a estrutura de uma seção (Resumo / Armadilhas em que caí / Perguntas) -->
 </script>
 <script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js"></script>
