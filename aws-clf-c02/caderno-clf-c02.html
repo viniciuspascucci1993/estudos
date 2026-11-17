@@ -558,6 +558,206 @@ _Motivos dos erros de 26/10 a 09/11 estimados na revisão de 09/11; daqui em dia
 
 ---
 
+## Bloco misturado #1 — prática, sem aula (15 questões)
+
+- **Data:** 16/11/2026 · **Nota:** 40% (6/15)
+- Primeiro bloco no formato de prova: temas sorteados entre os 4 domínios, sem dica e sem consulta.
+- **Diagnóstico:** cerca de metade dos erros veio da leitura (marquei por impulso, sem ler todas as opções), e a outra metade de serviços que eu ainda não tinha estudado a fundo (Shield, FSx, Route 53 routing, Cost Anomaly Detection).
+- **Regra nova:** ler **todas** as opções antes de marcar, eliminar 2, e só então escolher pela palavra-chave.
+- Q5, Q8, Q13, Q14 e Q15: falta anotar o que marquei e o motivo.
+
+### Bloco Q2 · [1 — Well-Architected] — motivo: confundi serviços (pilares)
+
+> Qual pilar do AWS Well-Architected Framework trata de reduzir o impacto ambiental das cargas de trabalho na nuvem?
+>
+> A) Excelência operacional · B) Eficiência de desempenho · C) Sustentabilidade · D) Otimização de custos
+
+**Resposta:** C _(eu marquei A)_
+
+**Heads-up:** Desde 2021 o Well-Architected tem **6 pilares**, e **Sustentabilidade** é um deles. Se a pergunta fala de **meio ambiente, energia ou pegada de carbono**, a resposta é Sustentabilidade. **Excelência operacional** trata de **rodar e melhorar a operação** (automação, runbooks, aprender com falhas), não do planeta.
+
+| Pilar | Pista |
+|---|---|
+| Excelência operacional | operar, monitorar, automatizar mudanças, aprender com falhas |
+| Segurança | proteger dados e sistemas, rastreabilidade, menor privilégio |
+| Confiabilidade | recuperar de falhas, escalar para a demanda, multi-AZ |
+| Eficiência de desempenho | escolher o recurso certo, experimentar, serverless |
+| Otimização de custos | não pagar por ociosidade, medir gasto |
+| **Sustentabilidade** | **impacto ambiental, energia, reduzir desperdício de recursos** |
+
+**Palavras-chave:** "ambiental", "carbono", "energia", "minimizar recursos ociosos pelo planeta" → Sustentabilidade
+
+---
+
+### Bloco Q3 · [2 — Responsabilidade compartilhada] — motivo: li errado
+
+> Quem é responsável por aplicar patches no sistema operacional que executa as funções AWS Lambda?
+>
+> A) O cliente · B) A AWS · C) Os dois, em partes iguais · D) O parceiro do AWS Marketplace
+
+**Resposta:** B _(eu marquei A, sabendo a resposta)_
+
+**Heads-up:** Quanto mais **gerenciado** o serviço, mais a AWS assume. No **EC2** o SO é **do cliente**. No **Lambda** (serverless) não existe servidor para o cliente: SO, runtime e patches são da **AWS**. O cliente cuida do **código, das permissões IAM e dos dados**.
+
+| Serviço | SO / patches | Cliente cuida de |
+|---|---|---|
+| EC2 | **Cliente** | SO, apps, security groups, dados |
+| RDS | AWS | dados, acessos, configuração do banco |
+| **Lambda** | **AWS** | **código, IAM, dados** |
+
+**Palavras-chave:** "serverless" / "Lambda" / "gerenciado" + "patch do SO" → AWS · "EC2" + "patch do SO" → cliente
+
+---
+
+### Bloco Q5 · [2 — Governança / conformidade] — motivo: _a confirmar_
+
+> Uma empresa quer registrar o histórico de configuração dos recursos AWS e ser avisada quando um recurso sair das regras internas (por exemplo, um bucket S3 ficar público). Qual serviço usar?
+>
+> A) AWS CloudTrail · B) AWS Config · C) Amazon CloudWatch · D) AWS Trusted Advisor
+
+**Resposta:** B _(marquei: a confirmar)_
+
+**Heads-up:** Os três "de olho" da AWS se confundem fácil: o **Config** responde **"como este recurso está configurado e se está conforme"**. O **CloudTrail** responde **"quem fez qual chamada de API e quando"**. O **CloudWatch** responde **"como está o desempenho"** (métricas, logs, alarmes).
+
+| Serviço | Pergunta que responde |
+|---|---|
+| **Config** | **como o recurso está configurado, histórico, está em conformidade?** |
+| CloudTrail | **quem** fez **o quê**, quando (auditoria de API) |
+| CloudWatch | métricas, logs, alarmes de desempenho |
+| Trusted Advisor | recomendações de boas práticas (custo, segurança, limites) |
+
+**Palavras-chave:** "histórico de configuração", "conformidade", "regras", "drift" → Config · "quem fez", "auditoria de API" → CloudTrail
+
+---
+
+### Bloco Q7 · [2 — Segurança / DDoS] — motivo: não sabia
+
+> Uma empresa quer proteção contra ataques DDoS sofisticados, acesso 24/7 à equipe de resposta a DDoS da AWS e proteção dos custos gerados por picos durante um ataque. O que usar?
+>
+> A) AWS Shield Standard · B) AWS Shield Advanced · C) AWS WAF · D) Amazon GuardDuty
+
+**Resposta:** B _(eu marquei outra opção; não conhecia os tipos de Shield)_
+
+**Heads-up:** O Shield tem **dois níveis**. O **Standard** é **gratuito e automático** para todo cliente (camadas 3 e 4). O **Advanced** é **pago** e acrescenta a **equipe de resposta a DDoS (SRT) 24/7**, a **proteção de custo** e relatórios. O **WAF** filtra requisições na **camada 7** (SQL injection, XSS, bloqueio por IP), e não é "o serviço anti-DDoS".
+
+| Serviço | Pista |
+|---|---|
+| Shield Standard | grátis, automático, DDoS comum (camadas 3/4) |
+| **Shield Advanced** | **pago, equipe DDoS 24/7 (SRT), proteção de custo** |
+| WAF | regras na camada 7: SQL injection, XSS, IP, país |
+| GuardDuty | detecção de ameaças analisando logs |
+
+**Palavras-chave:** "DDoS" + "sem custo / automático" → Shield Standard · "DDoS" + "equipe 24/7" ou "proteção de custo" → Shield Advanced · "SQL injection / XSS" → WAF
+
+---
+
+### Bloco Q8 · [2 — IAM / várias contas] — motivo: _a confirmar_
+
+> Uma aplicação na conta A precisa ler objetos de um bucket S3 da conta B, sem criar usuários nem compartilhar chaves de acesso. Qual a forma recomendada?
+>
+> A) Criar um usuário IAM na conta B e copiar as chaves para a conta A · B) Criar uma role IAM na conta B que a conta A possa assumir · C) Tornar o bucket público · D) Usar o AWS Organizations
+
+**Resposta:** B _(marquei: a confirmar)_
+
+**Heads-up:** Acesso entre contas = **role**. A conta B cria uma role com permissão no bucket e uma **política de confiança** que deixa a conta A **assumir** essa role (via STS). A conta A recebe **credenciais temporárias**. Chave de acesso copiada é o anti-padrão que a prova quer que você descarte.
+
+| Recurso IAM | Use quando |
+|---|---|
+| Usuário | uma pessoa ou app com identidade fixa (credencial de longo prazo) |
+| Grupo | dar as mesmas permissões a vários usuários |
+| **Role** | **acesso temporário: serviço AWS (EC2→S3), outra conta, federação** |
+| Política | o documento JSON que define as permissões |
+
+**Palavras-chave:** "outra conta", "sem compartilhar chaves", "temporário", "EC2 acessar S3" → Role
+
+---
+
+### Bloco Q10 · [3 — Armazenamento] — motivo: li errado (impulso, não li a última opção)
+
+> Uma empresa vai migrar servidores de arquivos Windows que usam compartilhamento SMB e Active Directory, e quer um serviço totalmente gerenciado. O que usar?
+>
+> A) Amazon EFS · B) Amazon S3 · C) Amazon EBS · D) Amazon FSx for Windows File Server
+
+**Resposta:** D _(marquei antes de ler a D)_
+
+**Heads-up:** O **EFS** é sistema de arquivos compartilhado para **Linux** (NFS). Se a pergunta fala em **Windows, SMB ou Active Directory**, a resposta é **FSx for Windows**. E nunca marque antes de ler **todas** as opções: a certa estava na última.
+
+| Serviço | Pista |
+|---|---|
+| EBS | disco (bloco) de **uma** instância EC2 |
+| EFS | arquivos compartilhados, **Linux / NFS**, várias EC2 |
+| **FSx for Windows** | **Windows, SMB, Active Directory** |
+| FSx for Lustre | HPC, alto desempenho, machine learning |
+| S3 | objetos, ilimitado, acesso via HTTP |
+
+**Palavras-chave:** "Windows", "SMB", "Active Directory" → FSx for Windows · "Linux", "NFS", "compartilhado" → EFS
+
+---
+
+### Bloco Q13 · [3 — Rede / DNS] — motivo: _a confirmar_
+
+> Uma aplicação roda em várias regiões AWS e a empresa quer que cada usuário seja direcionado para a região que der a **menor latência** para ele. Qual recurso usar?
+>
+> A) Route 53 com roteamento por latência · B) Route 53 com roteamento simples · C) Route 53 com roteamento por geolocalização · D) Elastic Load Balancer
+
+**Resposta:** A _(marquei: a confirmar)_
+
+**Heads-up:** O Route 53 tem várias **políticas de roteamento**. A palavra da pergunta já diz qual é: "menor latência" leva ao roteamento **por latência**. **Geolocalização** decide pelo **local do usuário** (país ou continente), por exemplo para conteúdo em outro idioma ou por exigência legal, e não pela velocidade. O **ELB** distribui tráfego **dentro de uma região**, não entre regiões.
+
+| Política | Use quando |
+|---|---|
+| Simples | um único recurso |
+| Ponderada (weighted) | dividir %: 90/10, teste A/B, canary |
+| **Latência** | **mandar para a região mais rápida para o usuário** |
+| Failover | primário/secundário com health check |
+| Geolocalização | decidir pelo **país/continente** do usuário |
+
+**Palavras-chave:** "menor latência", "mais rápida" → Latência · "país", "idioma", "lei local" → Geolocalização · "porcentagem" → Ponderada · "recuperação de desastre" → Failover
+
+---
+
+### Bloco Q14 · [4 — Gestão de custos] — motivo: _a confirmar_
+
+> Uma empresa quer ser alertada automaticamente quando o gasto subir de forma **fora do padrão**, sem precisar definir um valor-limite fixo. Qual serviço usar?
+>
+> A) AWS Budgets · B) AWS Cost Explorer · C) AWS Cost Anomaly Detection · D) AWS Pricing Calculator
+
+**Resposta:** C _(marquei: a confirmar)_
+
+**Heads-up:** No **Budgets** **você** define o limite ("me avise quando passar de US$ 500"). O **Cost Anomaly Detection** usa **machine learning** para descobrir sozinho o que é fora do normal, **sem limite fixo**. O **Cost Explorer** serve para **analisar** o gasto passado e a previsão. A **Pricing Calculator** **estima** o custo **antes** de usar.
+
+| Serviço | Pista |
+|---|---|
+| Budgets | **limite que eu defino**, alerta quando passa ou vai passar |
+| **Cost Anomaly Detection** | **"fora do padrão", "anomalia", ML, sem limite fixo** |
+| Cost Explorer | gráficos, analisar gasto passado, previsão |
+| Pricing Calculator | estimar antes de migrar ou criar |
+
+**Palavras-chave:** "anomalia", "fora do padrão", "inesperado", "sem definir valor" → Cost Anomaly Detection · "limite", "orçamento" → Budgets
+
+---
+
+### Bloco Q15 · [4 — Planos de suporte] — motivo: _a confirmar_
+
+> Uma equipe está **testando** cargas de trabalho na AWS (não é produção) e quer orientação técnica por **e-mail em horário comercial**, pagando o mínimo possível. Qual plano?
+>
+> A) Basic · B) Developer · C) Business · D) Enterprise On-Ramp
+
+**Resposta:** B _(marquei: a confirmar)_
+
+**Heads-up:** O **Basic** é grátis, mas **não tem suporte técnico**: só faturamento, conta, documentação e Trusted Advisor básico. O **Developer** é o **mais barato com suporte técnico**, por e-mail e em horário comercial, feito para **testes e desenvolvimento**. Quando a pergunta fala em **produção** ou **24/7**, o plano já é **Business**.
+
+| Plano | Pista |
+|---|---|
+| Basic | grátis, **sem** suporte técnico |
+| **Developer** | **testes/dev, e-mail, horário comercial** |
+| Business | **produção**, 24/7, telefone, < 1h |
+| Enterprise On-Ramp / Enterprise | crítico, TAM (grupo / dedicado) |
+
+**Palavras-chave:** "teste", "desenvolvimento", "horário comercial", "e-mail" → Developer · "produção", "24/7" → Business
+
+---
+
 <!-- Próximas: copie o bloco de uma questão acima e preencha -->
 </script>
 <script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js"></script>
