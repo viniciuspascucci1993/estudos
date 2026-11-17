@@ -881,6 +881,120 @@ Um teste de integração que grava e lê de volta de um banco real, conferindo o
 
 ---
 
+## 12. Design de API REST
+
+**Estudado em:** 17/11/2026 · **No projeto:** ledger-service, semana 3 (API REST + Idempotency-Key)
+
+### Resumo
+
+**Seguro × idempotente**
+- **Seguro** = não altera estado (GET). **Idempotente** = repetir N vezes deixa o **estado** igual a 1 vez (GET, PUT, DELETE). POST não é nenhum dos dois, e por isso existe o **Idempotency-Key**.
+- Idempotência fala do **estado do servidor**, não da resposta: `DELETE` 204 e depois 404 continua idempotente.
+- Retry automático (cliente HTTP, proxy, Resilience4j) só é seguro em operação idempotente.
+
+**Status codes**
+
+| Situação | Código |
+|---|---|
+| Criou | **201** + `Location` |
+| Aceitou para processar depois | 202 |
+| Sucesso sem corpo | 204 |
+| JSON malformado / tipo errado / validação de campo | **400** |
+| JSON válido que quebra regra de negócio | **422** |
+| Sem autenticação ou token inválido/expirado | **401** |
+| Autenticado sem permissão | **403** (ou 404 para não revelar que o recurso existe) |
+| Conflito com o estado atual | 409 |
+| `If-Match` com ETag desatualizado | 412 |
+| Método não suportado no recurso | 405 |
+| Rate limit | 429 + `Retry-After` |
+
+**Idempotency-Key: as 3 respostas possíveis**
+- Chave nova → processa normalmente (201).
+- **Mesma chave + mesmo corpo → devolve a resposta original gravada** (201, mesmo corpo, mesmo `Location`), sem criar nada novo.
+- Mesma chave + corpo diferente → erro (422 ou 409, documentado). Ainda processando a primeira → 409.
+
+**Erros: RFC 9457 (Problem Details)**
+- Corpo padrão: `type`, `title`, `status`, `detail`, `instance`. O Spring Boot 3 tem `ProblemDetail`.
+- Nome de exceção Java **não** vaza para a API: o contrato é o status + o `type`.
+
+**Paginação**
+- **Offset** (`?page=&size=`): permite pular de página, mas piora em tabela grande e duplica ou pula itens quando os dados mudam.
+- **Cursor** (`?after=&limit=`): custo constante via índice (`WHERE (criado_em, id) > (?, ?)`) e estável com inserções. Ideal para extrato e dados append-only.
+
+**Versionamento e evolução do contrato**
+- **Adicionar** campo não quebra. **Remover, renomear ou mudar o tipo** quebra.
+- Transição sem derrubar ninguém = **expand/contract** (o mesmo das migrations): adicionar o campo novo **ao lado** do antigo, marcar o antigo como deprecated (headers `Deprecation` / `Sunset`), medir quem ainda usa e remover só na `/v2`.
+
+**Concorrência otimista via HTTP**
+- GET devolve `ETag`; PUT envia `If-Match`; se mudou no meio → **412**. É o lost update da aula 4 na camada HTTP.
+
+**Nomes de recursos**
+- **Substantivos e hierarquia**, nunca verbos: `GET /contas/{id}/extrato`, e não `listExtractByAccount` (isso é estilo RPC).
+
+**API do ledger (semana 3)**
+
+| Operação | Endpoint | Sucesso | Headers | Erros |
+|---|---|---|---|---|
+| Criar lançamento | `POST /v1/lancamentos` | 201 + `Location: /v1/lancamentos/{id}` | `Idempotency-Key` (obrigatório) | 400 (malformado, valor ≤ 0), 422 (desequilibrado), 422/409 (chave com corpo diferente) |
+| Buscar lançamento | `GET /v1/lancamentos/{id}` | 200 | `Cache-Control` longo (é imutável) | 404 |
+| Saldo | `GET /v1/contas/{contaId}/saldo` | 200 (`saldoEmCentavos`, `moeda`) | — | saldo zero **não é erro** |
+| Extrato | `GET /v1/contas/{contaId}/extrato?limit=50&after=...` | 200 (`itens`, `proximoCursor`) | — | 400 (cursor inválido) |
+| Estornar | `POST /v1/lancamentos/{id}/estornos` | 201 + `Location` do **novo** lançamento | `Idempotency-Key` | 404, 409 (já estornado) |
+| Alterar / excluir | `PUT` / `DELETE /v1/lancamentos/{id}` | — | — | **405**: o ledger é append-only |
+
+### Armadilhas em que caí
+
+- Respondi **201** para `"valor": "abc"` e para lançamento desequilibrado: seria uma API que **aceita e grava dado inválido**. O certo é 400 e 422.
+- Achei que a 2ª chamada do DELETE (404) quebrava a idempotência. A idempotência é sobre o **estado**, não sobre o código da resposta.
+- Para a mesma Idempotency-Key com o **mesmo** corpo, pensei em 422/409. O certo é **devolver a resposta original**; o erro é só para corpo diferente.
+- Sugeri um "tipo genérico" para mudar `valor` de number para objeto. Isso quebra a tipagem dos clientes; o caminho é expand/contract.
+- Dei nomes de endpoint com verbo (`listExtractByAccount`) e citei nome de exceção como erro da API.
+- Disse que o lançamento pode ser alterado. O ledger é **append-only**: nunca altera nem exclui; corrige com um **estorno**, que é **outro lançamento** com as partidas invertidas (e não uma tabela separada).
+
+### Perguntas
+
+<details><summary>DELETE /contas/123 retorna 204 e, na segunda vez, 404. Isso quebra a idempotência?</summary>
+
+Não. Idempotência é sobre o estado do servidor: depois de 1 ou de N chamadas, a conta não existe. O código da resposta pode mudar; algumas APIs devolvem 204 nas duas, e ambos os jeitos são aceitos.
+</details>
+
+<details><summary>Qual a diferença entre 400 e 422?</summary>
+
+400 é erro de sintaxe ou de formato: JSON quebrado, tipo errado, campo obrigatório ausente. 422 é JSON válido que viola uma regra de negócio, como débitos diferentes de créditos.
+</details>
+
+<details><summary>O cliente reenviou a mesma Idempotency-Key com o mesmo corpo. O que a API responde?</summary>
+
+A resposta original, gravada na primeira execução: mesmo status (201), mesmo corpo e mesmo Location, sem criar nada novo. Erro só se o corpo for diferente (422 ou 409) ou se a primeira ainda estiver em processamento (409).
+</details>
+
+<details><summary>401 ou 403?</summary>
+
+401 quando não se sabe quem é o cliente: sem token, token inválido ou expirado. 403 quando se sabe quem é, mas ele não tem permissão. Em sistemas multi-tenant, às vezes se devolve 404 para não revelar que o recurso existe.
+</details>
+
+<details><summary>Extrato com milhões de linhas e inserções contínuas: offset ou cursor?</summary>
+
+Cursor. Primeiro, o custo é constante, porque o banco vai direto pelo índice (WHERE (criado_em, id) > (?, ?)) em vez de ler e descartar N linhas. Segundo, é estável: inserções durante a navegação não duplicam nem pulam itens.
+</details>
+
+<details><summary>Como mudar o tipo de um campo da API sem quebrar os clientes?</summary>
+
+Expand/contract: adicionar o campo novo ao lado do antigo (adição não quebra), marcar o antigo como deprecated com os headers Deprecation e Sunset, acompanhar quem ainda usa e remover o antigo só numa nova versão (/v2).
+</details>
+
+<details><summary>Como corrigir um lançamento errado num ledger, e como isso aparece na API?</summary>
+
+Nunca alterando nem excluindo, porque o ledger é append-only e precisa de auditoria. Cria-se um estorno: um novo lançamento com as partidas invertidas, ligado ao original. Na API: POST /v1/lancamentos/{id}/estornos devolve 201 com o Location do novo lançamento, e PUT/DELETE no lançamento devolvem 405.
+</details>
+
+<details><summary>Para que servem ETag e If-Match?</summary>
+
+Concorrência otimista via HTTP. O GET devolve a versão (ETag) e a atualização envia If-Match com essa versão. Se outro cliente alterou o recurso no meio, a API responde 412 em vez de sobrescrever (lost update).
+</details>
+
+---
+
 <!-- Próximo tema: copie a estrutura de uma seção (Resumo / Armadilhas em que caí / Perguntas) -->
 </script>
 <script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js"></script>
