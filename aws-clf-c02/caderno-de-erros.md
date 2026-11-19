@@ -590,4 +590,23 @@ _Motivos dos erros de 26/10 a 09/11 estimados na revisão de 09/11; daqui em dia
 
 ---
 
+## Bloco misturado #2 — mesmos temas do #1, perguntas novas (10 questões)
+
+- **Data:** 19/11/2026 · **Nota:** 100% (10/10) 🎯
+- Usei o protocolo: anotar a palavra que decide, ler todas as opções, eliminar 2 e só então marcar. **De 40% para 100% com o mesmo conteúdo**: o problema do bloco #1 era a leitura.
+
+### Anotação: quando a resposta é role IAM?
+
+| Quem precisa do acesso | Use |
+|---|---|
+| **Serviço AWS → outro serviço AWS** (EC2→S3, Lambda→DynamoDB, ECS→SQS) | **Role** (na EC2 via *perfil de instância*; na Lambda, *execution role*) |
+| Conta A → recurso da conta B | **Role** que a conta A assume |
+| Login de funcionários com o AD/SSO da empresa (federação) | **Role** via IAM Identity Center |
+| Uma pessoa com acesso fixo | Usuário IAM (em grupo) ou Identity Center |
+| App **fora** da AWS (servidor on-premises) | Access key de longo prazo (o jeito moderno é IAM Roles Anywhere) |
+
+**Palavras-chave:** "instância/função/container acessar outro serviço", "MAIS seguro", "sem armazenar credenciais", "temporário", "outra conta" → Role · Opção com access key no código, em variável de ambiente ou com root → **eliminar primeiro**
+
+---
+
 <!-- Próximas: copie o bloco de uma questão acima e preencha -->
