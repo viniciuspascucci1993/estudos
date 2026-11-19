@@ -833,4 +833,88 @@ Concorrência otimista via HTTP. O GET devolve a versão (ETag) e a atualizaçã
 
 ---
 
+## 13. Incidente: cobrança duplicada
+
+**Praticado em:** 19/11/2026 · **Liga com:** idempotência (5), resiliência (9), REST (12)
+
+### Resumo
+
+**Cenário:** Black Friday. O deploy v2.14 reduziu o timeout da chamada ao PSP de 10 s para 2 s e adicionou retry com 3 tentativas. O PSP degradou (p99 de 2,8 s). Resultado: clientes cobrados 2 ou 3 vezes.
+
+**Mecânica:** o payment-service desiste por timeout, **mas o PSP termina a cobrança**; o retry manda outra. O código enviava Idempotency-Key, mas com `UUID.randomUUID()` **dentro** do método com `@Retry`: **uma chave nova por tentativa**, e o PSP via três compras diferentes.
+
+| | |
+|---|---|
+| **Gatilho** | degradação do PSP (p99 de 2,8 s > timeout de 2 s) |
+| **Causa raiz** | chave de idempotência gerada por **tentativa**, e não por **operação** |
+| **Teste da causa raiz** | "se eu corrigir isso, o problema fica impossível?" Com a chave estável, o PSP lento só deixa o pagamento lento |
+
+**Mitigação (minutos):** rollback do v2.14 ✅ · desligar o retry (mais falhas para o cliente) · aumentar o timeout (risco de pool esgotado e cascata) · pausar o checkout (último recurso)
+
+**Impacto:** contar duplicados **conciliando com o relatório do PSP**. O nosso banco gravou `FALHA_TIMEOUT` em cobranças que o PSP aprovou, então a query só no banco mostra zero duplicados.
+
+**Clientes afetados:** identificar pelo PSP, estornar **proativamente**, avisar o suporte (com roteiro), o financeiro, os clientes e o jurídico (CDC art. 42: devolução em dobro de cobrança indevida, salvo engano justificável).
+
+**Correção:**
+```java
+@Retry(name = "psp")
+public CobrancaResponse cobrar(Pedido pedido) {
+    var request = new CobrancaRequest(pedido.getId(), pedido.getValorEmCentavos());
+    return pspClient.post("/charges", request,
+        Map.of("Idempotency-Key", "cobranca-" + pedido.getId()));
+}
+```
+A chave identifica **a operação de negócio**, não a tentativa. Se o cliente pode tentar pagar de novo depois de uma recusa real (outro cartão, por exemplo), a chave passa a ser o **id da tentativa de pagamento**, criado e gravado **uma vez**, antes da primeira chamada.
+
+**Timeout = "não sei", não "falhou":** gravar **PENDENTE**, consultar o PSP pela chave ou pelo pedido (reconciliação) e só então marcar APROVADA ou FALHA. Nunca mostrar "pagamento falhou" ao cliente sem saber.
+
+**Prevenção**
+- **Teste:** teste de integração com o PSP simulado (WireMock) respondendo **depois** do timeout → afirmar que todas as tentativas usam **a mesma chave** e que existe **uma** cobrança.
+- **Revisão de deploy:** checklist em PR que mexe em timeout ou retry: "a operação é idempotente?" e "o timeout está acima do p99 da dependência?". Mudança arriscada sai atrás de **feature flag** e com **canary**.
+- **Detecção:** **conciliação automática** com o PSP a cada poucos minutos + alerta quando aparecer mais de uma cobrança aprovada para o mesmo pedido (ou quando subir a quantidade de PENDENTES). Pega em minutos, não por ticket.
+
+### Armadilhas em que caí
+
+- Respostas genéricas na fase 1 ("ponta do iceberg", "avisar o cliente") sem dizer **como medir**, **onde** e **qual ação**.
+- Tratei a latência do PSP como a hipótese. Ela é o **gatilho**: sozinha deixa lento, não cobra duas vezes.
+- Propus Idempotency-Key como **mitigação**. É **prevenção** (código + deploy = horas). Mitigação é o que dá para fazer em minutos: rollback.
+- Chamei de "falha em cascata". Cascata é timeout se propagando entre serviços (lab 2); aqui é retry de operação não idempotente.
+- Achei que o `max-attempts: 3` era a causa. Retry com chave estável é inofensivo; o problema era a chave mudar a cada tentativa.
+- Sugeri circuit breaker como causa raiz. Ele abre depois que as falhas sobem, quando as primeiras tentativas já cobraram em dobro.
+- ✅ Acertei a correção: trocar o UUID aleatório pelo id do pedido.
+
+### Perguntas
+
+<details><summary>O código envia Idempotency-Key e mesmo assim o cliente foi cobrado 3 vezes. Como isso é possível?</summary>
+
+A chave era gerada com UUID.randomUUID() dentro do método anotado com @Retry. Cada tentativa chamava o método de novo e gerava outra chave, então o PSP via três operações diferentes. A chave precisa identificar a operação de negócio (o pedido ou a tentativa de pagamento gravada), não a tentativa técnica.
+</details>
+
+<details><summary>Num timeout ao chamar o PSP, o que o sistema deve gravar?</summary>
+
+PENDENTE (desconhecido), nunca FALHA. Timeout significa "não sei": o PSP pode ter processado. O sistema consulta o PSP pela chave ou pelo pedido e só então decide entre APROVADA e FALHA.
+</details>
+
+<details><summary>Qual é o gatilho e qual é a causa raiz da cobrança duplicada?</summary>
+
+Gatilho: a degradação do PSP, com p99 de 2,8 s acima do timeout de 2 s. Causa raiz: a chave de idempotência gerada por tentativa. Prova: com a chave estável, o mesmo gatilho só deixaria o pagamento mais lento, sem duplicar.
+</details>
+
+<details><summary>Por que a query de duplicados no nosso banco não basta para medir o impacto?</summary>
+
+Porque o banco gravou as tentativas com timeout como falha, mas o PSP aprovou. No banco aparece uma cobrança aprovada por pedido. O impacto real só sai da conciliação com o relatório do PSP.
+</details>
+
+<details><summary>Qual a primeira mitigação, e por que não a Idempotency-Key?</summary>
+
+Rollback do deploy que mudou timeout e retry: leva minutos e volta para uma versão conhecida. Corrigir a chave é prevenção, porque exige código, teste e deploy, o que leva horas.
+</details>
+
+<details><summary>Como detectar cobrança duplicada em minutos em vez de por reclamação de cliente?</summary>
+
+Conciliação automática e frequente com o PSP, com alerta quando houver mais de uma cobrança aprovada para o mesmo pedido ou quando subir a quantidade de cobranças PENDENTES.
+</details>
+
+---
+
 <!-- Próximo tema: copie a estrutura de uma seção (Resumo / Armadilhas em que caí / Perguntas) -->
