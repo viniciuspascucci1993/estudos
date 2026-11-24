@@ -1079,6 +1079,108 @@ Conciliação automática e frequente com o PSP, com alerta quando houver mais d
 
 ---
 
+## 14. Estratégia de testes
+
+**Estudado em:** 24/11/2026 · **No projeto:** testes do ledger-service (unitário, fatia web, Testcontainers)
+
+### Resumo
+
+**Pirâmide de testes**
+
+| Nível | Velocidade | Prova | No ledger |
+|---|---|---|---|
+| **Unitário** | ms | a regra está certa | `LancamentoTest`, `PartidaTest`, `CriarLancamentoServiceTest` |
+| **Integração** | s | a peça conversa certo com o mundo real | `LancamentoPersistenceAdapterTest` (Postgres real), `LancamentoControllerTest` (fatia web: Spring MVC + Jackson + validação) |
+| **E2E** | min | o fluxo inteiro junto | — |
+
+Quanto mais alto, mais confiança, mas mais lento, frágil e caro. A base é larga: a regra "débito = crédito" se prova no unitário, não subindo Postgres e HTTP.
+
+**Dublês de teste**
+
+| Tipo | O que é | Exemplo |
+|---|---|---|
+| **Stub** | devolve resposta pronta | `when(buscarLancamento.buscarPorId(id)).thenReturn(...)` |
+| **Fake** | implementação real simplificada | `LancamentoRepositoryEmMemoria` (HashMap) |
+| **Mock** | verifica se a chamada aconteceu | `verify(criarLancamento, never()).criar(any())` |
+
+- **Fake** para verificar **estado** ("foi salvo?", "o que foi salvo?"): sobrevive a refatoração.
+- **Mock** quando a chamada **é** o comportamento ("o e-mail foi enviado?", "o caso de uso **não** foi chamado?").
+- Mock demais prende o teste à implementação: refatorou, quebrou, mesmo com o comportamento certo.
+- **"Não moque o que não é seu"**: porta própria na frente (`LancamentoRepository`) e adapter testado de verdade (Testcontainers / WireMock).
+
+**O que testar:** regras de domínio, limites (zero, negativo, lista vazia, exatamente 1), contratos (status, formato do erro, campos do JSON), integrações (SQL, mapeamento), concorrência.
+**O que não testar:** getters/setters, classe que só delega, o próprio framework.
+
+**Cobertura (Sonar):** é um **piso**, não meta (Lei de Goodhart). Cobertura baixa é sinal confiável; cobertura alta não prova nada (teste sem assert também cobre).
+- Configuração boa: excluir DTO/entidade/config/gerado (`sonar.coverage.exclusions`), cobrar o **código novo** com branch de referência, olhar cobertura de **branches**, ignorar mudanças pequenas.
+- "Código novo" depende da *new code definition* (versão anterior, N dias, branch de referência). Formatador e imports reorganizados contam como linha alterada → manter o diff pequeno.
+- **Mutation testing (PIT):** altera o código de propósito; se os testes continuam verdes, o mutante sobreviveu e o teste não verifica nada.
+- Legado difícil: **teste de caracterização** antes de mexer (registra o comportamento atual).
+
+**Testes que passam pelo motivo errado**
+- **Só o lado negativo** (BFF: 401 passava sem o plugin JWT). Segurança e validação precisam do negativo **e** do positivo.
+- **Nunca ver falhar**: o vermelho do TDD prova que o teste detecta o problema.
+- **Tautológico**: configura o mock e confere o próprio mock; não exercita código de produção.
+- **Ambiente que mente**: H2 em vez de Postgres. Exemplo real: a precisão do `TIMESTAMPTZ` (microssegundos) que obrigou o `truncatedTo(MICROS)` só apareceu com o Postgres de verdade; `ON CONFLICT` e as migrations do Flyway também se comportam diferente.
+
+**Testes da Idempotency-Key (plano para sexta)**
+
+| Teste | Nível |
+|---|---|
+| Chave nova → processa, grava a resposta | unitário (fake) |
+| Mesma chave + mesmo corpo → devolve a resposta original e existe **um** lançamento | unitário (fake) |
+| Mesma chave + corpo diferente → erro (422) | unitário (fake) |
+| Erro vira 422 ProblemDetail; header ausente → 400 | fatia web (`@WebMvcTest`) |
+| **Duas requisições simultâneas** com a mesma chave → **um** lançamento no banco | integração (Testcontainers): quem garante é a constraint `UNIQUE` do Postgres, que um `HashMap` não prova |
+
+### Armadilhas em que caí
+
+- Chamei o `LancamentoControllerTest` de unitário: ele sobe a fatia web do Spring (MVC, Jackson, validação), é teste de **integração da camada web**.
+- Esqueci de dizer os dublês: (a) **fake**, (b) **mock/stub** via `@MockitoBean`, (c) **nenhum** (Postgres real).
+- **Inverti** o tautológico: é o **A** (configura o mock e confere o próprio mock). O B exercita o controller e o handler de verdade; o mock só alimenta a dependência.
+- Disse que o fake "simula uma resposta": ele é uma implementação que **guarda** de verdade; o teste confere o **estado** (está salvo? `total() == 0`?), não a chamada.
+- Contra o H2, faltou motivo concreto: o bug da precisão do `Instant` que só o Postgres real mostrou.
+- Para a Idempotency-Key, listei um teste vago. Faltou separar os casos (nova, mesmo corpo, corpo diferente, concorrência) e dizer o nível de cada um.
+
+### Perguntas
+
+<details><summary>Qual a diferença entre stub, fake e mock?</summary>
+
+Stub devolve uma resposta pronta. Fake é uma implementação de verdade, só que simplificada (um repositório em HashMap). Mock verifica se uma chamada aconteceu ou não. Fake verifica estado; mock verifica interação.
+</details>
+
+<details><summary>Por que preferir um fake do repositório a verify(repository).salvar(any())?</summary>
+
+O fake prova o resultado: o lançamento está guardado, com o conteúdo certo, e nada foi gravado quando deu erro. O verify só prova que o método foi chamado, talvez com o objeto errado, e quebra se a implementação trocar de método mesmo com o comportamento correto.
+</details>
+
+<details><summary>O que é um teste tautológico?</summary>
+
+Um teste que configura o mock para devolver X e depois confere se veio X. Ele não exercita nenhum código de produção: testa o Mockito.
+</details>
+
+<details><summary>Por que não trocar Testcontainers por H2?</summary>
+
+O H2 não é o Postgres: dialeto SQL, tipos e comportamentos diferem. No ledger, a precisão do TIMESTAMPTZ (microssegundos) só apareceu com o Postgres real; ON CONFLICT e as migrations do Flyway também mudam. Um teste verde no H2 pode quebrar em produção.
+</details>
+
+<details><summary>Qual é a cobertura ideal?</summary>
+
+Cobertura é um piso, não meta. Serve para achar o que não foi testado, mas não prova que os testes verificam algo. A qualidade se mede com mutation testing e revisão. Melhor 70% de testes de regra do que 95% de testes de getter.
+</details>
+
+<details><summary>Por que o teste de concorrência da Idempotency-Key precisa de banco real?</summary>
+
+Porque quem garante que só um lançamento é criado é a constraint UNIQUE do Postgres, disputada por duas transações ao mesmo tempo. Um fake em HashMap não reproduz isso.
+</details>
+
+<details><summary>Por que um teste de segurança precisa de dois lados?</summary>
+
+O negativo (recusa o inválido) pode passar pelo motivo errado, como no BFF, em que o 401 vinha da falta do plugin JWT. O positivo (aceita o válido) prova que a proteção funciona e não está só bloqueando tudo.
+</details>
+
+---
+
 <!-- Próximo tema: copie a estrutura de uma seção (Resumo / Armadilhas em que caí / Perguntas) -->
 </script>
 <script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js"></script>
