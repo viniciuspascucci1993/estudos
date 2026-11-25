@@ -699,4 +699,43 @@ _Motivos dos erros de 26/10 a 09/11 estimados na revisão de 09/11; daqui em dia
 
 ---
 
+## Bloco misturado #3 — erros do simulado + temas novos (15 questões)
+
+- **Data:** 25/11/2026 · **Nota:** 87% (13/15) ✅ 1º resultado ≥ 80% (critério: 3 seguidos)
+- Acertei: VPN (Q1), Trusted Advisor, DMS × Application Migration Service, CloudFront, Snowball, Auto Scaling, NAT Gateway, Savings Plans, KMS, Beanstalk, Glacier Deep Archive, SCPs.
+- Errei: Direct Connect (de novo) e Artifact.
+
+### Bloco #3 Q2 · [3 — Rede] — motivo: confundi serviços (3ª vez com VPN × Direct Connect)
+
+> Uma empresa transfere grandes volumes de dados todos os dias entre o data center e a AWS e precisa de banda consistente, sem passar pela internet pública. O que usar?
+
+**Resposta:** AWS Direct Connect
+
+**Heads-up:** Essa é a 3ª vez. A regra de bolso: **procure a palavra "internet" no enunciado.**
+- "**sem** passar pela internet", "consistente", "dedicada", "grandes volumes todo dia" → **Direct Connect** (cabo próprio, do prédio até a AWS)
+- "**usando** a internet existente", "criptografada", "hoje", "barato" → **Site-to-Site VPN** (túnel pela internet)
+
+**Truque do nome:** **Direct** Connect = conexão **direta**, um cabo seu, sem internet no meio.
+
+---
+
+### Bloco #3 Q11 · [2 — Conformidade] — motivo: confundi serviços
+
+> Um auditor pede os relatórios de conformidade da AWS (como SOC e PCI). Onde a empresa obtém esses documentos?
+
+**Resposta:** AWS Artifact _(eu marquei AWS Config)_
+
+**Heads-up:** O **Config** olha os **seus** recursos: como estão configurados e se estão conformes com as **suas** regras. O **Artifact** é o "cartório" da AWS: onde você **baixa** os relatórios de auditoria **da própria AWS** (SOC, PCI, ISO) e aceita acordos (como o BAA). Se a pergunta fala em **relatório, certificado, documento de conformidade da AWS**, é Artifact.
+
+| Serviço | Pista |
+|---|---|
+| **Artifact** | **baixar relatórios de conformidade da AWS** (SOC, PCI, ISO), acordos |
+| Config | configuração e conformidade dos **seus** recursos, histórico |
+| Audit Manager | coletar evidências da **sua** conta para a **sua** auditoria |
+| Trusted Advisor | recomendações de boas práticas |
+
+**Palavras-chave:** "relatório", "SOC", "PCI", "ISO", "documento de conformidade da AWS", "auditor pede" → Artifact
+
+---
+
 <!-- Próximas: copie o bloco de uma questão acima e preencha -->
