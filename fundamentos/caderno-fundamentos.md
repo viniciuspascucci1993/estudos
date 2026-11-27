@@ -1019,4 +1019,109 @@ O negativo (recusa o inválido) pode passar pelo motivo errado, como no BFF, em 
 
 ---
 
+## 15. Incidente resolvido passo a passo: "o app inteiro ficou lento"
+
+**Praticado em:** 26/11/2026 · **Formato:** exemplo resolvido (eu acompanhei) · **Liga com:** transações (4), migrations (8), resiliência/bulkhead (9), incidentes de pool (7) e cascata (10)
+
+### Resumo
+
+**Cenário:** conta digital, `conta-service` (Spring Boot + Postgres). Deploy da v3.8 às 09:40 (filtro por categoria no extrato + migration V14). Às 10:02, com o pico diário, erro 5xx em **todos** os endpoints (inclusive PIX), extrato com p99 de 9 s, pool 20/20 com 140 esperando, CPU do banco a 95%.
+
+**Template (o modelo para os próximos labs):**
+`Impacto (número + fonte) → O que mudou → Mitigação (ação + custo) → Hipótese → Evidência → Gatilho × causa raiz → Prevenção (teste / deploy / detecção)`
+
+**Fase 1, Impacto:** olhar erros **por endpoint** (RED), desde quando e tendência. A pergunta-chave: **tem dinheiro envolvido?** PIX falhando sobe a severidade.
+> 12% de erro em todos os endpoints desde 10:02, incluindo PIX (~380 transferências/min). Piorando. Severidade alta.
+
+**Fase 2, O que mudou:** deploys, configuração, infraestrutura, provedor, tráfego. **O atraso não inocenta o deploy**: um problema que depende de carga fica escondido até o pico.
+
+**Fase 3, Mitigação:** estancar primeiro, investigar depois.
+- Rollback para a v3.7 ✅ (custo: filtro fora do ar).
+- Aumentar o pool ou subir pods ❌: o banco já está a 95%; mais conexões = pior.
+- **Antes do rollback:** a migration é compatível com o código antigo? **Rollback da aplicação não desfaz a migration.**
+
+| Mudança na migration | A versão anterior funciona? |
+|---|---|
+| `ADD COLUMN` que aceita nulo | ✅ (o JPA ignora a coluna nos SELECTs; nos INSERTs ela fica nula) |
+| `ADD COLUMN ... NOT NULL DEFAULT ...` | ✅ |
+| `ADD COLUMN ... NOT NULL` sem default | ❌ INSERTs falham |
+| `RENAME` / `DROP` de coluna usada | ❌ |
+
+- Como saber: **no incidente**, ler o arquivo da migration (está no repositório); **no processo**, checklist de PR + expand/contract; **com teste**, ensaiar o rollback em homologação (sobe a nova, volta para a antiga, smoke test).
+- Consulta segura em produção: `flyway_schema_history` (a migration terminou com sucesso?). **Nunca** consulta pesada com o banco saturado.
+
+**Fase 4, Hipótese:** uma história que explique **todos** os sinais.
+> Consulta nova do extrato lenta → cada requisição segura uma conexão → no pico, as 20 ficam presas → o PIX (mesmo pool) espera, estoura o timeout do Hikari → 5xx.
+
+**Fase 5, Evidência:**
+1. `pg_stat_statements`: consulta nova, média de 4,8 s, 57 mil chamadas.
+2. `EXPLAIN` (sem `ANALYZE`, depois do rollback): `Seq Scan` em 40 mi de linhas. A antiga: `Index Scan` em `(conta_id, criado_em)`.
+3. Diff: `WHERE conta_id::text = :contaId`, com o id chegando como `String`.
+- Os testes não pegaram porque o banco de teste tinha 200 linhas: Seq Scan em tabela pequena é instantâneo.
+
+**Fase 6, Gatilho × causa raiz:**
+- **Gatilho:** o pico das 10h.
+- **Causa raiz:** conversão **na coluna** (`conta_id::text`), que impede o uso do índice.
+- **Fator contribuinte:** pool compartilhado entre extrato e PIX (aumentou o estrago, não causou).
+- Correção: `WHERE conta_id = :contaId` com parâmetro `UUID` (ou `CAST(:contaId AS uuid)`, convertendo o **parâmetro**). Confirmar com `EXPLAIN`.
+
+**Regra de ouro: nunca aplique função ou conversão na coluna indexada.**
+
+| ❌ Não usa o índice | ✅ Usa o índice |
+|---|---|
+| `conta_id::text = :id` | `conta_id = CAST(:id AS uuid)` |
+| `DATE(criado_em) = '2026-11-26'` | `criado_em >= '2026-11-26' AND criado_em < '2026-11-27'` |
+| `LOWER(email) = ...` | índice funcional: `CREATE INDEX ON usuarios (LOWER(email))` |
+
+**Fase 7, Prevenção:**
+- **Teste:** teste de integração que roda `EXPLAIN` nas consultas críticas e verifica o uso do índice; carga em homologação com volume real.
+- **Deploy:** canary (5% do tráfego), feature flag, checklist "rodou o `EXPLAIN`?".
+- **Detecção:** alerta de **saturação do pool** (chega antes dos erros); painel do `pg_stat_statements` antes × depois do deploy.
+- **Resiliência:** **bulkhead** (pool ou limite de concorrência separado para o extrato).
+
+### Armadilhas em que caí
+
+- Achei que antes do rollback era preciso consultar produção para ver "se dava para adicionar a coluna". A coluna **já existia** (a migration rodou no deploy); a pergunta certa é se o código **antigo** funciona com o banco **novo**, e isso se responde lendo a migration.
+- Achei que o problema era o `String`. É **de que lado** foi a conversão: converter a coluna mata o índice; converter o parâmetro, não.
+- Na checagem, marquei "bug no endpoint de transferências". A v3.8 tinha um bug, sim, mas **no extrato**. O PIX quebrou por efeito colateral (pool compartilhado). **O lugar do sintoma não é o lugar da causa.**
+
+### Perguntas
+
+<details><summary>Por que o PIX falhou se a v3.8 não mexeu nele?</summary>
+
+Porque o extrato lento ocupou todas as conexões do pool compartilhado. O PIX ficou esperando uma conexão até estourar o timeout do Hikari. O sintoma apareceu num lugar diferente da causa.
+</details>
+
+<details><summary>Por que não aumentar o pool ou subir mais pods para mitigar?</summary>
+
+Porque o gargalo era o banco, já a 95% de CPU. Mais conexões colocam mais consultas brigando pela mesma CPU e pioram o problema.
+</details>
+
+<details><summary>Rollback da aplicação desfaz a migration?</summary>
+
+Não. O Flyway não desaplica migrations. Por isso toda migration precisa ser compatível com a versão anterior do código (expand/contract), senão o rollback deixa de ser uma opção.
+</details>
+
+<details><summary>Por que `conta_id::text = :id` não usa o índice?</summary>
+
+O índice guarda valores uuid. Para comparar com texto, o banco precisa converter a coluna de cada linha, então lê a tabela inteira (Seq Scan). Convertendo o parâmetro, a comparação é direta e o índice funciona.
+</details>
+
+<details><summary>Por que os testes não pegaram a consulta lenta?</summary>
+
+Porque o banco de teste tinha 200 linhas, e um Seq Scan em tabela pequena é instantâneo. Problemas de plano de execução só aparecem com volume, ou com um teste que verifica o EXPLAIN.
+</details>
+
+<details><summary>O que é um fator contribuinte e por que separá-lo da causa raiz?</summary>
+
+É algo que não causou o incidente, mas aumentou o estrago, como o pool compartilhado. Separar importa porque, se ele não for corrigido (com bulkhead), a próxima consulta lenta em qualquer endpoint derruba o PIX de novo.
+</details>
+
+<details><summary>Qual alerta teria pegado esse incidente mais cedo?</summary>
+
+Saturação do pool de conexões (conexões esperando acima de um limite por alguns minutos). Ela sobe antes dos erros aparecerem: teria disparado por volta das 10:03, e não às 10:15.
+</details>
+
+---
+
 <!-- Próximo tema: copie a estrutura de uma seção (Resumo / Armadilhas em que caí / Perguntas) -->
